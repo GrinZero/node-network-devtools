@@ -1,5 +1,5 @@
 {
-  "name": "node-network-debugger",
+  "name": "node-network-devtools",
   "private": true,
   "scripts": {
     "build": "turbo build",
@@ -8,8 +8,6 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
   },
   "devDependencies": {
-    "@repo/eslint-config": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
     "prettier": "^3.2.5",
     "turbo": "latest"
   },

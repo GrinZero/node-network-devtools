@@ -1,0 +1,43 @@
+{
+  "name": "node-network-devtools",
+  "version": "1.0.0",
+  "description": "",
+  "main": "./dist/node-network-devtools.umd.js",
+  "module": "./dist/node-network-devtools.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/node-network-devtools.mjs",
+      "require": "./dist/node-network-devtools.umd.js",
+      "types": "./dist/src/index.d.ts"
+    },
+    "./dev": {
+      "import": "./src/index.ts",
+      "require": "./src/index.ts",
+      "types": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/chrome-remote-interface": "^0.31.14",
+    "@types/node": "^20.11.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "tslib": "2.6.2",
+    "vite": "^5.2.10",
+    "vite-plugin-dts": "^3.8.3",
+    "vitest": "^1.5.0"
+  },
+  "dependencies": {
+    "chrome-remote-interface": "^0.33.0",
+    "open": "^8.4.2",
+    "ws": "^8.17.0"
+  }
+}

@@ -44,7 +44,9 @@ export class DevtoolServer {
         });
         console.log("devtool connected");
         socket.on("message", (message) => {
-          this.listeners.forEach((listener) => listener(null, message));
+          const msg = JSON.parse(message.toString());
+          // console.log("devtool message", msg);
+          this.listeners.forEach((listener) => listener(null, msg));
         });
         socket.on("close", () => {
           console.log("devtool closed");
@@ -57,7 +59,15 @@ export class DevtoolServer {
     });
   }
 
+  private updateTimestamp() {
+    this.timestamp = Date.now() - this.startTime;
+  }
+
   public async open() {
+    // 检测是否已经打开，已打开则跳过
+    if (this.browser) {
+      return this.browser;
+    }
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`;
     const process = await open(url, {
       app: {
@@ -76,7 +86,7 @@ export class DevtoolServer {
 
   async send(message: any) {
     const [socket] = await this.socket;
-    return socket.send(message);
+    return socket.send(JSON.stringify(message));
   }
 
   public on(listener: (error: unknown | null, message?: any) => void) {
@@ -86,59 +96,75 @@ export class DevtoolServer {
   async requestWillBeSent(request: RequestDetail) {
     this.timestamp = Date.now() - this.startTime;
 
-    return this.send(
-      JSON.stringify({
-        method: "Network.requestWillBeSent",
-        params: {
-          requestId: request.id,
-          frameId,
-          loaderId,
-          request: {
-            url: request.url,
-            method: request.method,
-            headers: request.requestHeaders,
-            initialPriority: "High",
-            mixedContentType: "none",
-            ...(request.requestData
-              ? {
-                  postData: request.requestData,
-                }
-              : {}),
-          },
-          timestamp: this.timestamp,
-          wallTime: request.requestStartTime,
-          initiator: {
-            type: "other",
-          },
-          type: "Fetch",
+    return this.send({
+      method: "Network.requestWillBeSent",
+      params: {
+        requestId: request.id,
+        frameId,
+        loaderId,
+        request: {
+          url: request.url,
+          method: request.method,
+          headers: request.requestHeaders,
+          initialPriority: "High",
+          mixedContentType: "none",
+          ...(request.requestData
+            ? {
+                postData: request.requestData,
+              }
+            : {}),
         },
-      })
-    );
+        timestamp: this.timestamp,
+        wallTime: request.requestStartTime,
+        initiator: {
+          type: "other",
+        },
+        type: "Fetch",
+      },
+    });
   }
 
   async responseReceived(request: RequestDetail) {
-    this.timestamp = Date.now() - this.startTime;
-    return this.send(
-      JSON.stringify({
-        method: "Network.responseReceived",
-        params: {
-          requestId: request.id,
-          frameId,
-          loaderId,
-          timestamp: this.timestamp,
-          type: "Document",
-          response: {
-            url: request.url,
-            status: request.responseStatusCode,
-            statusText: "",
-            headers: request.responseHeaders,
-            mimeType: "text/html",
-            connectionReused: false,
-            connectionId: 0,
-            encodedDataLength: 0,
-          },
+    this.updateTimestamp();
+    this.send({
+      method: "Network.responseReceived",
+      params: {
+        requestId: request.id,
+        frameId,
+        loaderId,
+        timestamp: this.timestamp,
+        type: "Fetch",
+        response: {
+          url: request.url,
+          status: request.responseStatusCode,
+          statusText: "",
+          headers: request.responseHeaders,
+          connectionReused: false,
+          encodedDataLength: request.responseData.length,
+          charset: "utf-8",
         },
-      })
-    );
+      },
+    });
+
+    this.updateTimestamp();
+    this.send({
+      method: "Network.dataReceived",
+      params: {
+        requestId: request.id,
+        timestamp: this.timestamp,
+        dataLength: request.responseData.length,
+        encodedDataLength: request.responseData.length,
+      },
+    });
+
+    this.updateTimestamp();
+    this.send({
+      method: "Network.loadingFinished",
+      params: {
+        requestId: request.id,
+        timestamp: this.timestamp,
+        encodedDataLength: request.responseData.length,
+      },
+    });
   }
 }

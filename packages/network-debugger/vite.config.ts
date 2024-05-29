@@ -18,7 +18,9 @@ export default defineConfig(({ mode }) => ({
         "chrome-remote-interface",
         "child_process",
         "open",
-        "ws"
+        "ws",
+        "iconv-lite",
+        "chardet"
       ],
       output: {
         globals: {
@@ -27,7 +29,9 @@ export default defineConfig(({ mode }) => ({
           "chrome-remote-interface": "CRT",
           child_process: "cp",
           open: "open",
-          "ws": "ws"
+          "ws": "ws",
+          "iconv-lite": "iconv",
+          "chardet": "chardet"
         },
       },
     },

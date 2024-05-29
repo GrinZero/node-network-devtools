@@ -5,9 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node --files ./src/index.ts",
     "watch": "nodemon --exec NODE_OPTIONS=--inspect-brk NODE_ENV=development ts-node --files ./src/index.ts",
-    "dev":"node ./src/index.js",
+    "dev":"node --watch ./src/index.js",
     "build": "vite build"
   },
   "keywords": [],

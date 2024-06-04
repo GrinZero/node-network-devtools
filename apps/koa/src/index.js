@@ -15,7 +15,6 @@ router.get("/", async (ctx) => {
     },
   });
 
-  console.log(res.data);
   ctx.body = res.data;
 });
 

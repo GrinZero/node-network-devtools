@@ -15,23 +15,21 @@ export default defineConfig(({ mode }) => ({
       external: [
         "http",
         "https",
-        "chrome-remote-interface",
         "child_process",
         "open",
         "ws",
         "iconv-lite",
-        "chardet"
+        "zlib"
       ],
       output: {
         globals: {
           http: "http",
           https: "https",
-          "chrome-remote-interface": "CRT",
           child_process: "cp",
           open: "open",
           "ws": "ws",
           "iconv-lite": "iconv",
-          "chardet": "chardet"
+          "zlib": "zlib"
         },
       },
     },

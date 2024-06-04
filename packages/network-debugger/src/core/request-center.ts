@@ -2,7 +2,7 @@ import { DevtoolServer } from "./devtool";
 import { RequestDetail } from "./type";
 import type { IncomingMessage } from "http";
 import iconv from "iconv-lite";
-import chardet from "chardet";
+import zlib from "zlib";
 
 export class RequestCenter {
   private requests: Record<string, RequestDetail>;
@@ -20,15 +20,42 @@ export class RequestCenter {
         if (!req) {
           return;
         }
-        const encoding = "utf-8";
-        const str = iconv.decode(req.responseData, encoding);
+        const contentType =
+          req.responseHeaders?.["content-type"] || "text/plain; charset=utf-8";
+        const match = contentType.match(/charset=([^;]+)/);
+        const encoding = match ? match[1] : "utf-8";
+
+        const isBinary = !/text|json|xml/.test(contentType);
+        const body = isBinary
+          ? req.responseData.toString("base64")
+          : iconv.decode(req.responseData, encoding);
+
         this.devtool.send({
           id: message.id,
           result: {
-            body: str,
-            base64Encoded: false,
+            body,
+            base64Encoded: isBinary,
           },
         });
+      }
+    });
+    process.on("message", (message: { type: string; data: any }) => {
+      switch (message.type) {
+        case "registerRequest":
+        case "updateRequest":
+        case "endRequest":
+          this[message.type](message.data);
+          break;
+        case "responseData":
+          const request = this.getRequest(message.data.id);
+          if (request) {
+            request.responseData = message.data.rawData;
+            request.responseStatusCode = message.data.statusCode;
+            request.responseHeaders = message.data.headers;
+            this.updateRequest(request);
+            this.endRequest(request);
+          }
+          break;
       }
     });
   }
@@ -81,9 +108,40 @@ export class RequestCenter {
     });
 
     response.on("end", () => {
-      requestDetail.responseData = Buffer.concat(responseBuffer);
-      this.updateRequest(requestDetail);
-      this.endRequest(requestDetail);
+      const rawData = Buffer.concat(responseBuffer);
+      this.tryDecompression(rawData, (decodedData) => {
+        requestDetail.responseData = decodedData;
+        this.updateRequest(requestDetail);
+        this.endRequest(requestDetail);
+      });
     });
+  }
+
+  private tryDecompression(data: Buffer, callback: (result: Buffer) => void) {
+    const decompressors: Array<
+      (data: Buffer, cb: (err: Error | null, result: Buffer) => void) => void
+    > = [zlib.gunzip, zlib.inflate, zlib.brotliDecompress];
+
+    let attempts = 0;
+
+    const tryNext = () => {
+      if (attempts >= decompressors.length) {
+        callback(data); // 理论上没有压缩
+        return;
+      }
+
+      const decompressor = decompressors[attempts];
+      attempts += 1;
+
+      decompressor(data, (err, result) => {
+        if (!err) {
+          callback(result);
+        } else {
+          tryNext();
+        }
+      });
+    };
+
+    tryNext();
   }
 }

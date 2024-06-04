@@ -25,7 +25,6 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/chrome-remote-interface": "^0.31.14",
     "@types/node": "^20.11.0",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
@@ -36,10 +35,9 @@
     "vitest": "^1.5.0"
   },
   "dependencies": {
-    "chardet": "^2.0.0",
-    "chrome-remote-interface": "^0.33.0",
     "iconv-lite": "^0.6.3",
     "open": "^8.4.2",
-    "ws": "^8.17.0"
+    "ws": "^8.17.0",
+    "zlib": "^1.0.5"
   }
 }

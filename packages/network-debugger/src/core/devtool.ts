@@ -26,12 +26,12 @@ export class DevtoolServer {
     this.server = server;
 
     let connected = false;
+
     server.on("listening", () => {
       console.log(`devtool server is listening on port ${port}`);
-
       setTimeout(() => {
         if (!connected) {
-          this.open();
+          // this.open();
         }
       }, 10);
     });
@@ -45,7 +45,6 @@ export class DevtoolServer {
         console.log("devtool connected");
         socket.on("message", (message) => {
           const msg = JSON.parse(message.toString());
-          // console.log("devtool message", msg);
           this.listeners.forEach((listener) => listener(null, msg));
         });
         socket.on("close", () => {
@@ -68,6 +67,7 @@ export class DevtoolServer {
     if (this.browser) {
       return this.browser;
     }
+    
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`;
     const process = await open(url, {
       app: {

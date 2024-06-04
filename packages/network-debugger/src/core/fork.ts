@@ -11,7 +11,10 @@ export class MainProcess {
   constructor({ port = 5270 }: { port: number; serverPort: number }) {
     this.ws = new Promise<WebSocket>((resolve) => {
       this.openProcess(() => {
-        resolve(new WebSocket(`ws://localhost:${port}`));
+        const socket = new WebSocket(`ws://localhost:${port}`);
+        socket.on("open", () => {
+          resolve(socket);
+        });
       });
     });
     this.ws.then((ws) => {
@@ -30,11 +33,9 @@ export class MainProcess {
 
     const handleMsg = (e: any) => {
       if (e === READY_MESSAGE) {
-        setTimeout(() => {
-          callback && callback();
-          fs.writeFileSync(LOCK_FILE, String(cp.pid));
-          cp.off("message", handleMsg);
-        });
+        callback && callback();
+        fs.writeFileSync(LOCK_FILE, String(cp.pid));
+        cp.off("message", handleMsg);
       }
     };
 

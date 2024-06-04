@@ -3,28 +3,25 @@
     <img src="https://github.com/GrinZero/extreme/assets/70185413/415b35ca-6e28-4486-b480-459bda8f1faa" width="100" />
     <br>Node Network Devtools</h1>
 
- <h3 align="center">🔮  Use chrome network devtool to debugger nodejs</h3>
- <h3 align="center">🦎  Similar web crawler experience to browsers </h3>
+ <h3 align="center">🔮  让node程序支持用chrome devtool的network选项卡调试</h3>
+ <h3 align="center">🦎  等同于浏览器的爬虫体验 </h3>
  <h3 align="center">⚙️  Powered by CDP</h3>
-  <p align="center">
   <p align="center">
      <img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJs"/>
     <img src="https://img.shields.io/badge/Google%20Chrome-4285F4?style=for-the-badge&logo=GoogleChrome&logoColor=white" alt="Chrome"/>
    <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=TypeScript&logoColor=white" alt="TypeScript" />
- </p>
  </p>
 
 </div>
 
 ---
 
+[English](README.md) | 简体中文
 
-English | [简体中文](README-zh_CN.md)
+## 📖 介绍
 
-## 📖 Introduction
-
-As you can see, the node program opened with the '-- inspect' option does not support network tags because it does not proxy user requests.
-Node network devtools is designed to address this issue by allowing you to debug requests made by nodejs using the network tab of Chrome devtools, making the debugging process equivalent to a web crawler experience in the browser.
+如你所见，添加`--inspect`选项打开的node程序并不支持network标签，因为它不去代理用户请求。
+node network devtools正是为了解决这个问题，它一个允许您使用chrome devtools的network选项卡调试nodejs发出的请求，让debugger过程等同于浏览器中的网络爬虫体验。
 
 ## 🎮 TODO
 
@@ -41,14 +38,13 @@ Node network devtools is designed to address this issue by allowing you to debug
   - [x] commonjs
   - [ ] modulejs
 
-## 👀 Preview
+## 👀 预览
 
-![img](https://github.com/GrinZero/extreme/assets/70185413/24de6b48-8f5e-4cf4-aff0-23f4735a4b57)
+![图](https://github.com/GrinZero/extreme/assets/70185413/24de6b48-8f5e-4cf4-aff0-23f4735a4b57)
 
+## 📦 快速开始
 
-## 📦 Quick Start
-
-### 1. Install
+### 1. 安装
 
 ```bash
 # npm
@@ -59,9 +55,9 @@ pnpm add node-network-devtools -D
 yarn add node-network-devtools -D
 ```
 
-### 2. Config
+### 2. 配置
 
-Add this code to your `.gitignore` file.
+把这行代码加到 `.gitignore` 文件中.
 
 ```bash
 request-center.lock
@@ -69,7 +65,7 @@ request-center.lock
 
 ### 2. Usage
 
-Just add the following code to the entry file of your project.
+只需将以下代码添加到项目的入口文件中即可。
 
 ```typescript
 import { register } from 'node-network-devtools'
@@ -77,9 +73,8 @@ import { register } from 'node-network-devtools'
 process.env.NODE_ENV === "development" && register()
 ```
 
-## 📚 Documentation
+## 📚 文档
 
-If you encounter any problems, you can try cleaning the `request-center.lock` file
-
+如果遇到任何问题，可以尝试清理`request-centre.lock`文件
 
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FGrinZero%2Fnode-network-devtools&labelColor=%237fa1f7&countColor=%23697689)

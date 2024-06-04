@@ -81,11 +81,9 @@ export class RequestCenter {
       });
     });
     server.on("listening", () => {
-      setTimeout(() => {
-        if (process.send) {
-          process.send(READY_MESSAGE);
-        }
-      }, 10);
+      if (process.send) {
+        process.send(READY_MESSAGE);
+      }
     });
 
     return server;

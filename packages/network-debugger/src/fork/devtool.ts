@@ -24,20 +24,13 @@ export class DevtoolServer {
     this.server = new Server({ port });
     const { server } = this;
 
-    let connected = false;
-
     server.on("listening", () => {
       console.log(`devtool server is listening on port ${port}`);
-      setTimeout(() => {
-        if (!connected) {
-          this.open();
-        }
-      }, 10);
+      this.open();
     });
 
     this.socket = new Promise<[WebSocket]>((resolve) => {
       server.on("connection", (socket) => {
-        connected = true;
         this.socket.then((l) => {
           l[0] = socket;
         });

@@ -1,6 +1,6 @@
 {
   "name": "node-network-devtools",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -21,7 +21,20 @@
     "build": "vite build",
     "dev": "vite build --watch"
   },
-  "keywords": [],
+  "keywords": [
+    "network",
+    "node",
+    "nodejs",
+    "debug",
+    "debugger",
+    "devtools",
+    "chrome",
+    "chrome devtools"
+  ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {

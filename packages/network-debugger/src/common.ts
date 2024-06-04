@@ -19,6 +19,6 @@ export class RequestDetail {
   requestEndTime?: number;
 }
 export const LOCK_FILE = "request-center.lock";
-export const PORT = 5270;
-export const SERVER_PORT = 5271;
+export const PORT = Number(process.env.NETWORK_PORT || 5270);
+export const SERVER_PORT = Number(process.env.NETWORK_SERVER_PORT || 5271);
 export const READY_MESSAGE = "ready";

@@ -1,37 +1,73 @@
+import { READY_MESSAGE, RequestDetail } from "../common";
+import { type IncomingMessage } from "http";
+import WebSocket from "ws";
 import { fork } from "child_process";
-import { RequestDetail } from "./type";
-import http from "http";
-import requestCenterFilePath from "./request-center?url";
+import fs from "fs";
+import { LOCK_FILE } from "../common";
 
-class MainProcess {
-  private requestCenterProcess;
+export class MainProcess {
+  private ws: Promise<WebSocket>;
 
-  constructor() {
-    this.requestCenterProcess = fork(requestCenterFilePath);
+  constructor({ port = 5270 }: { port: number; serverPort: number }) {
+    this.ws = new Promise<WebSocket>((resolve) => {
+      this.openProcess(() => {
+        resolve(new WebSocket(`ws://localhost:${port}`));
+      });
+    });
+    this.ws.then((ws) => {
+      ws.on("error", (e) => {
+        console.error("MainProcess Socket Error: ", e);
+      });
+    });
+  }
+
+  private openProcess(callback?: () => void) {
+    if (fs.existsSync(LOCK_FILE)) {
+      callback && callback();
+      return;
+    }
+    const cp = fork(require.resolve("./fork"));
+
+    const handleMsg = (e: any) => {
+      if (e === READY_MESSAGE) {
+        setTimeout(() => {
+          callback && callback();
+          fs.writeFileSync(LOCK_FILE, String(cp.pid));
+          cp.off("message", handleMsg);
+        });
+      }
+    };
+
+    cp.on("message", handleMsg);
+  }
+
+  private async send(data: any) {
+    const ws = await this.ws;
+    ws.send(JSON.stringify(data));
   }
 
   public registerRequest(request: RequestDetail) {
-    this.requestCenterProcess.send({
+    this.send({
       type: "registerRequest",
       data: request,
     });
   }
 
   public updateRequest(request: RequestDetail) {
-    this.requestCenterProcess.send({
+    this.send({
       type: "updateRequest",
       data: request,
     });
   }
 
   public endRequest(request: RequestDetail) {
-    this.requestCenterProcess.send({
+    this.send({
       type: "endRequest",
       data: request,
     });
   }
 
-  public responseRequest(id: string, response: http.IncomingMessage) {
+  public responseRequest(id: string, response: IncomingMessage) {
     const responseBuffer: Buffer[] = [];
 
     response.on("data", (chunk: any) => {
@@ -40,17 +76,20 @@ class MainProcess {
 
     response.on("end", () => {
       const rawData = Buffer.concat(responseBuffer);
-      this.requestCenterProcess.send({
-        type: "responseData",
-        data: {
-          id: id,
-          rawData: rawData,
-          statusCode: response.statusCode,
-          headers: response.headers,
-        },
+      this.ws.then((ws) => {
+        ws.send(
+          JSON.stringify({
+            type: "responseData",
+            data: {
+              id: id,
+              rawData: rawData, // Convert to string
+              statusCode: response.statusCode,
+              headers: response.headers,
+            },
+          }),
+          { binary: true }
+        );
       });
     });
   }
 }
-
-const mainProcess = new MainProcess();

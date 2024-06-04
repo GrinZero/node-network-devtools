@@ -7,13 +7,8 @@ register();
 
 const app = new Koa();
 const router = new Router();
-
 router.get("/", async (ctx) => {
-  const res = await axios.get("https://jsonplaceholder.typicode.com/posts", {
-    headers: {
-      Accept: "application/json, text/plain, */*",
-    },
-  });
+  const res = await axios.get("https://jsonplaceholder.typicode.com/posts");
 
   ctx.body = res.data;
 });

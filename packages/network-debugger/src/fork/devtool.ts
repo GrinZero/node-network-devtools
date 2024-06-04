@@ -1,11 +1,10 @@
 import { Server, type WebSocket } from "ws";
 import open, { apps } from "open";
 import { type ChildProcess } from "child_process";
-import { RequestDetail } from "./type";
-const PORT = 5270;
+import { RequestDetail } from "../common";
 
 export interface DevtoolServerInitOptions {
-  port?: number;
+  port: number;
 }
 
 const frameId = "517.528";
@@ -19,11 +18,11 @@ export class DevtoolServer {
   private startTime = Date.now();
 
   private listeners: ((error: unknown | null, message?: any) => void)[] = [];
-  constructor(props?: DevtoolServerInitOptions) {
-    const { port = PORT } = props || {};
+  constructor(props: DevtoolServerInitOptions) {
+    const { port } = props;
     this.port = port;
-    const server = new Server({ port });
-    this.server = server;
+    this.server = new Server({ port });
+    const { server } = this;
 
     let connected = false;
 
@@ -31,7 +30,7 @@ export class DevtoolServer {
       console.log(`devtool server is listening on port ${port}`);
       setTimeout(() => {
         if (!connected) {
-          // this.open();
+          this.open();
         }
       }, 10);
     });
@@ -67,7 +66,7 @@ export class DevtoolServer {
     if (this.browser) {
       return this.browser;
     }
-    
+
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`;
     const process = await open(url, {
       app: {

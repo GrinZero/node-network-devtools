@@ -2,11 +2,30 @@ const http = require("http");
 const https = require("https");
 import type { IncomingMessage, ClientRequest } from "http";
 import type { RequestOptions } from "https";
-import { RequestDetail } from "./type";
-import { RequestCenter } from "./request-center";
+import { RequestDetail } from "../common";
+import { MainProcess } from "./fork";
 
-export async function register() {
-  const requestCenter = new RequestCenter();
+/**
+ * @mark 暂时不支持
+ */
+export interface RegisterOptions {
+  /**
+   * @description 主进程端口
+   * @default 5270
+   */
+  port?: number;
+  /**
+   * @description CDP服务端口
+   */
+  serverPort?: number;
+}
+
+export async function register(props: RegisterOptions) {
+  const { port = 5270, serverPort = 5271 } = props || {};
+  const mainProcess = new MainProcess({
+    port,
+    serverPort,
+  });
 
   function proxyClientRequestFactory(
     actualRequest: ClientRequest,
@@ -26,7 +45,8 @@ export async function register() {
     actualRequest.on("error", () => {
       requestDetail.responseStatusCode = 0;
       requestDetail.requestEndTime = new Date().getTime();
-      requestCenter.endRequest(requestDetail);
+      // requestCenter.endRequest(requestDetail);
+      mainProcess.endRequest(requestDetail);
     });
 
     return actualRequest;
@@ -43,7 +63,7 @@ export async function register() {
         actualCallBack(response);
       }
 
-      requestCenter.responseRequest(requestDetail.id, response);
+      mainProcess.responseRequest(requestDetail.id, response);
     };
   }
 
@@ -67,7 +87,7 @@ export async function register() {
         requestDetail.requestHeaders = options.headers;
       }
 
-      requestCenter.registerRequest(requestDetail);
+      mainProcess.registerRequest(requestDetail);
       const proxyCallback = proxyCallbackFactory(cb, requestDetail);
       const request: ClientRequest = actualRequestHandler(
         options,
@@ -81,9 +101,6 @@ export async function register() {
 
   agents.forEach((agent) => {
     const actualRequestHandlerFn = agent.request;
-    // Object.assign(agent, {
-    //   request: requestProxyFactory(actualRequestHandlerFn, agent === https),
-    // });
     // @ts-ignore
     agent.request = requestProxyFactory(
       actualRequestHandlerFn,

@@ -2,12 +2,12 @@
   "name": "node-network-devtools",
   "version": "1.0.0",
   "description": "",
-  "main": "./dist/node-network-devtools.umd.js",
-  "module": "./dist/node-network-devtools.mjs",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
   "exports": {
     ".": {
-      "import": "./dist/node-network-devtools.mjs",
-      "require": "./dist/node-network-devtools.umd.js",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
       "types": "./dist/src/index.d.ts"
     },
     "./dev": {

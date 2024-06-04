@@ -1,15 +1,23 @@
 import { DevtoolServer } from "./devtool";
-import { RequestDetail } from "./type";
+import { READY_MESSAGE, RequestDetail } from "../common";
 import type { IncomingMessage } from "http";
 import iconv from "iconv-lite";
 import zlib from "zlib";
+import { Server } from "ws";
+
+export interface RequestCenterInitOptions {
+  port?: number;
+}
 
 export class RequestCenter {
   private requests: Record<string, RequestDetail>;
   private devtool: DevtoolServer;
-  constructor() {
+  private server: Server;
+  constructor({ port }: { port: number }) {
     this.requests = {};
-    this.devtool = new DevtoolServer();
+    this.devtool = new DevtoolServer({
+      port,
+    });
     this.devtool.on((error, message) => {
       if (error) {
         return;
@@ -39,25 +47,48 @@ export class RequestCenter {
         });
       }
     });
-    process.on("message", (message: { type: string; data: any }) => {
-      switch (message.type) {
-        case "registerRequest":
-        case "updateRequest":
-        case "endRequest":
-          this[message.type](message.data);
-          break;
-        case "responseData":
-          const request = this.getRequest(message.data.id);
-          if (request) {
-            request.responseData = message.data.rawData;
-            request.responseStatusCode = message.data.statusCode;
-            request.responseHeaders = message.data.headers;
-            this.updateRequest(request);
-            this.endRequest(request);
-          }
-          break;
-      }
+    this.server = this.initServer();
+  }
+
+  private initServer() {
+    const server = new Server({ port: 5270 });
+    server.on("connection", (ws) => {
+      ws.on("message", (data) => {
+        const message = JSON.parse(data.toString());
+        const _message = message as { type: string; data: any };
+        switch (_message.type) {
+          case "registerRequest":
+          case "updateRequest":
+          case "endRequest":
+            this[_message.type](_message.data);
+            break;
+          case "responseData":
+            const request = this.getRequest(message.data.id);
+            if (request) {
+              this.tryDecompression(
+                Buffer.from(message.data.rawData),
+                (decodedData) => {
+                  request.responseData = decodedData;
+                  request.responseStatusCode = message.data.statusCode;
+                  request.responseHeaders = message.data.headers;
+                  this.updateRequest(request);
+                  this.endRequest(request);
+                }
+              );
+            }
+            break;
+        }
+      });
     });
+    server.on("listening", () => {
+      setTimeout(() => {
+        if (process.send) {
+          process.send(READY_MESSAGE);
+        }
+      }, 1000);
+    });
+
+    return server;
   }
 
   private getRequest(id: string) {

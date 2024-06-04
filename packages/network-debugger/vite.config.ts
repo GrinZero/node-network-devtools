@@ -8,8 +8,10 @@ export default defineConfig(({ mode }) => ({
     target: "es2020",
     outDir: "dist",
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
-      name: "network-debugger",
+      entry: [
+        resolve(__dirname, "src/index.ts"),
+        resolve(__dirname, "src/fork/fork.ts")
+      ],
     },
     rollupOptions: {
       external: [
@@ -19,7 +21,8 @@ export default defineConfig(({ mode }) => ({
         "open",
         "ws",
         "iconv-lite",
-        "zlib"
+        "zlib",
+        "fs"
       ],
       output: {
         globals: {
@@ -29,7 +32,8 @@ export default defineConfig(({ mode }) => ({
           open: "open",
           "ws": "ws",
           "iconv-lite": "iconv",
-          "zlib": "zlib"
+          "zlib": "zlib",
+          "fs": "fs"
         },
       },
     },

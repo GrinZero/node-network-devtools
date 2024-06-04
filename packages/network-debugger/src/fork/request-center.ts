@@ -85,7 +85,7 @@ export class RequestCenter {
         if (process.send) {
           process.send(READY_MESSAGE);
         }
-      }, 1000);
+      }, 10);
     });
 
     return server;

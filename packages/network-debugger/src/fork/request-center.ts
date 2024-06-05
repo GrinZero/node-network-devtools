@@ -1,9 +1,9 @@
 import { DevtoolServer } from "./devtool";
 import { READY_MESSAGE, RequestDetail } from "../common";
 import type { IncomingMessage } from "http";
-import iconv from "iconv-lite";
 import zlib from "zlib";
 import { Server } from "ws";
+import { RequestHeaderTransformer, BodyTransformer } from "./pipe";
 
 export interface RequestCenterInitOptions {
   port?: number;
@@ -28,22 +28,12 @@ export class RequestCenter {
         if (!req) {
           return;
         }
-        const contentType =
-          req.responseHeaders?.["content-type"] || "text/plain; charset=utf-8";
-        const match = contentType.match(/charset=([^;]+)/);
-        const encoding = match ? match[1] : "utf-8";
 
-        const isBinary = !/text|json|xml/.test(contentType);
-        const body = isBinary
-          ? req.responseData.toString("base64")
-          : iconv.decode(req.responseData, encoding);
+        const body = new BodyTransformer(req).decodeBody();
 
         this.devtool.send({
           id: message.id,
-          result: {
-            body,
-            base64Encoded: isBinary,
-          },
+          result: body,
         });
       }
     });
@@ -70,7 +60,9 @@ export class RequestCenter {
                 (decodedData) => {
                   request.responseData = decodedData;
                   request.responseStatusCode = message.data.statusCode;
-                  request.responseHeaders = message.data.headers;
+                  request.responseHeaders = new RequestHeaderTransformer(
+                    message.data.headers
+                  ).getData();
                   this.updateRequest(request);
                   this.endRequest(request);
                 }

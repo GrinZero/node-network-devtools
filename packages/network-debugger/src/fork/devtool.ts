@@ -9,6 +9,11 @@ export interface DevtoolServerInitOptions {
 
 const frameId = "517.528";
 const loaderId = "517.529";
+
+export const toMimeType = (contentType: string) => {
+  return contentType.split(";")[0] || "text/plain";
+};
+
 export class DevtoolServer {
   private server: Server;
   private port: number;
@@ -118,6 +123,26 @@ export class DevtoolServer {
 
   async responseReceived(request: RequestDetail) {
     this.updateTimestamp();
+    const headers = request.responseHeaders;
+
+    const contentType = headers["content-type"] || "text/plain; charset=utf-8";
+
+    const type = (() => {
+      if (/image/.test(contentType)) {
+        return "Image";
+      }
+      if (/javascript/.test(contentType)) {
+        return "Script";
+      }
+      if (/css/.test(contentType)) {
+        return "Stylesheet";
+      }
+      if (/html/.test(contentType)) {
+        return "Document";
+      }
+      return "Other";
+    })();
+
     this.send({
       method: "Network.responseReceived",
       params: {
@@ -125,15 +150,16 @@ export class DevtoolServer {
         frameId,
         loaderId,
         timestamp: this.timestamp,
-        type: "Fetch",
+        type,
         response: {
           url: request.url,
           status: request.responseStatusCode,
-          statusText: "",
+          statusText: request.responseStatusCode === 200 ? "OK" : "",
           headers: request.responseHeaders,
           connectionReused: false,
           encodedDataLength: request.responseData.length,
           charset: "utf-8",
+          mimeType: toMimeType(contentType),
         },
       },
     });

@@ -12,5 +12,15 @@ router.get("/", async (ctx) => {
   ctx.body = res.data;
 });
 
+router.get("/img", async (ctx) => {
+  const res = await axios.get("https://picsum.photos/30/30");
+  ctx.body = res.data;
+});
+
+router.get('/baidu', async (ctx) => {
+  const res = await axios.get('http://www.baidu.com');
+  ctx.body = res.data;
+})
+
 app.use(router.routes());
 app.listen(3000);

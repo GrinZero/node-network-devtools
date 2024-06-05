@@ -20,12 +20,6 @@ export interface RegisterOptions {
   serverPort?: number;
 }
 
-
-if (process.env.NETWORK_DEBUGGER) {
-  console.log("network devtools run in debug mode");
-  new MainProcess({ port: 5270, serverPort: 5271 }).closeProcess();
-}
-
 export async function register(props: RegisterOptions) {
   const { port = 5270, serverPort = 5271 } = props || {};
   const mainProcess = new MainProcess({

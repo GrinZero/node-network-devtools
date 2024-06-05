@@ -24,7 +24,7 @@ export class MainProcess {
     });
   }
 
-  public openProcess(callback?: () => void) {
+  private openProcess(callback?: () => void) {
     if (fs.existsSync(LOCK_FILE)) {
       callback && callback();
       return;
@@ -40,14 +40,6 @@ export class MainProcess {
     };
 
     cp.on("message", handleMsg);
-  }
-
-  public closeProcess() {
-    if (fs.existsSync(LOCK_FILE)) {
-      const pid = fs.readFileSync(LOCK_FILE, "utf-8");
-      process.kill(Number(pid), "SIGINT");
-      fs.unlinkSync(LOCK_FILE);
-    }
   }
 
   private async send(data: any) {

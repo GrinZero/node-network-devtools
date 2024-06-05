@@ -32,7 +32,7 @@ Node network devtools is designed to address this issue by allowing you to debug
   - [x] req/res headers
   - [x] payload
   - [x] json str response body
-  - [ ] binary response body
+  - [x] binary response body
 - [ ] WebSocket
   - [ ] messages
   - [ ] payload

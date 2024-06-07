@@ -1,4 +1,4 @@
-import { Server, type WebSocket } from "ws";
+import { Server, WebSocket } from "ws";
 import open, { apps } from "open";
 import { type ChildProcess } from "child_process";
 import { RequestDetail } from "../common";
@@ -66,12 +66,40 @@ export class DevtoolServer {
     }
 
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`;
-    const process = await open(url, {
-      app: {
-        name: apps.chrome,
-      },
+    const process = await open('', {
+        app: {
+            name: apps.chrome,
+            arguments: ['--remote-debugging-port=9222']
+        }
     });
-    console.log("click to open chrome devtool: ", url);
+
+    const json: any[] = await new Promise<any[]>((resolve, reject) => {
+        let stop = setInterval(async () => {
+            try {
+                resolve((await fetch('http://127.0.0.1:9222/json')).json());
+                clearInterval(stop);
+            } catch (error) {
+                console.log('未找到9222');
+            }
+        }, 500);
+    });
+    const { webSocketDebuggerUrl } = json[0];
+    const debuggerWs = new WebSocket(webSocketDebuggerUrl);
+
+    debuggerWs.on('open', () => {
+        const navigateCommand = {
+            id:1,
+            method: 'Page.navigate',
+            params: {
+                url
+            }
+        };
+        debuggerWs.send(JSON.stringify(navigateCommand));
+        debuggerWs.close();
+    });
+
+
+    console.log("opened in chrome or click here to open chrome devtool: ", url);
     this.browser = process;
     return process;
   }

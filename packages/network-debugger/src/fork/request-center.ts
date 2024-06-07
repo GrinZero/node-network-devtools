@@ -7,14 +7,21 @@ import { RequestHeaderTransformer, BodyTransformer } from "./pipe";
 
 export interface RequestCenterInitOptions {
   port?: number;
+  requests?: Record<string, RequestDetail>;
 }
 
 export class RequestCenter {
-  private requests: Record<string, RequestDetail>;
+  public requests: Record<string, RequestDetail>;
   private devtool: DevtoolServer;
   private server: Server;
-  constructor({ port }: { port: number }) {
-    this.requests = {};
+  constructor({
+    port,
+    requests,
+  }: {
+    port: number;
+    requests?: Record<string, RequestDetail>;
+  }) {
+    this.requests = requests || {};
     this.devtool = new DevtoolServer({
       port,
     });
@@ -164,5 +171,10 @@ export class RequestCenter {
     };
 
     tryNext();
+  }
+
+  public close() {
+    this.server.close();
+    this.devtool.close();
   }
 }

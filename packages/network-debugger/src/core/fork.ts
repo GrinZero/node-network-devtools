@@ -49,10 +49,15 @@ export class MainProcess {
     };
 
     if (IS_DEV_MODE) {
-      if (fs.existsSync(LOCK_FILE)) {
-        const pid = fs.readFileSync(LOCK_FILE, "utf-8");
-        process.kill(Number(pid), "SIGTERM");
+      try {
+        if (fs.existsSync(LOCK_FILE)) {
+          const pid = fs.readFileSync(LOCK_FILE, "utf-8");
+          process.kill(Number(pid), "SIGTERM");
+        }
+      } catch (e) {
+        console.error("Don't worry. Error while killing process", e);
       }
+
       forkProcess();
       return;
     }

@@ -1,7 +1,7 @@
 import { Server, WebSocket } from "ws";
 import open, { apps } from "open";
 import { type ChildProcess } from "child_process";
-import { RequestDetail } from "../common";
+import { IS_DEV_MODE, RequestDetail } from "../common";
 import { REMOTE_DEBUGGER_PORT } from "../common";
 
 export interface DevtoolServerInitOptions {
@@ -62,6 +62,11 @@ export class DevtoolServer {
 
   public async open() {
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`;
+
+    if(IS_DEV_MODE){
+      console.log(`In dev mode, open chrome devtool manually: ${url}`)
+      return;
+    }
 
     const pro = await open(url, {
       app: {

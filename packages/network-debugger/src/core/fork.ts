@@ -1,4 +1,4 @@
-import { READY_MESSAGE, RequestDetail } from "../common";
+import { IS_DEV_MODE, READY_MESSAGE, RequestDetail } from "../common";
 import { type IncomingMessage } from "http";
 import WebSocket from "ws";
 import { fork } from "child_process";
@@ -35,21 +35,32 @@ export class MainProcess {
   }
 
   private openProcess(callback?: () => void) {
+    const forkProcess = () => {
+      const cp = fork(require.resolve("./fork"));
+      const handleMsg = (e: any) => {
+        if (e === READY_MESSAGE) {
+          callback && callback();
+          fs.writeFileSync(LOCK_FILE, String(cp.pid));
+          cp.off("message", handleMsg);
+        }
+      };
+
+      cp.on("message", handleMsg);
+    };
+
+    if (IS_DEV_MODE) {
+      if (fs.existsSync(LOCK_FILE)) {
+        const pid = fs.readFileSync(LOCK_FILE, "utf-8");
+        process.kill(Number(pid), "SIGTERM");
+      }
+      forkProcess();
+      return;
+    }
     if (fs.existsSync(LOCK_FILE)) {
       callback && callback();
       return;
     }
-    const cp = fork(require.resolve("./fork"));
-
-    const handleMsg = (e: any) => {
-      if (e === READY_MESSAGE) {
-        callback && callback();
-        fs.writeFileSync(LOCK_FILE, String(cp.pid));
-        cp.off("message", handleMsg);
-      }
-    };
-
-    cp.on("message", handleMsg);
+    forkProcess();
   }
 
   private async send(data: any) {

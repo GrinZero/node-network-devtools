@@ -21,5 +21,8 @@ export class RequestDetail {
 export const LOCK_FILE = "request-center.lock";
 export const PORT = Number(process.env.NETWORK_PORT || 5270);
 export const SERVER_PORT = Number(process.env.NETWORK_SERVER_PORT || 5271);
-export const REMOTE_DEBUGGER_PORT = Number(process.env.REMOTE_DEBUGGER_PORT || 9333);
+export const REMOTE_DEBUGGER_PORT = Number(
+  process.env.REMOTE_DEBUGGER_PORT || 9333
+);
+export const IS_DEV_MODE = process.env.NETWORK_DEBUG_MODE === "true";
 export const READY_MESSAGE = "ready";

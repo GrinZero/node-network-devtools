@@ -2,6 +2,7 @@ import { Server, WebSocket } from "ws";
 import open, { apps } from "open";
 import { type ChildProcess } from "child_process";
 import { RequestDetail } from "../common";
+import { REMOTE_DEBUGGER_PORT } from "../common";
 
 export interface DevtoolServerInitOptions {
   port: number;
@@ -60,48 +61,55 @@ export class DevtoolServer {
   }
 
   public async open() {
-    // 检测是否已经打开，已打开则跳过
-    if (this.browser) {
-      return this.browser;
-    }
-
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`;
-    const process = await open('', {
-        app: {
-            name: apps.chrome,
-            arguments: ['--remote-debugging-port=9222']
-        }
+
+    const pro = await open(url, {
+      app: {
+        name: apps.chrome,
+        arguments: [
+          process.platform !== "darwin"
+            ? `--remote-debugging-port=${REMOTE_DEBUGGER_PORT}`
+            : "",
+        ],
+      },
     });
 
-    const json: any[] = await new Promise<any[]>((resolve, reject) => {
+    if (process.platform !== "darwin") {
+      const json = await new Promise<
+        { webSocketDebuggerUrl: string; id: string }[]
+      >((resolve) => {
         let stop = setInterval(async () => {
-            try {
-                resolve((await fetch('http://127.0.0.1:9222/json')).json());
-                clearInterval(stop);
-            } catch (error) {
-                console.log('未找到9222');
-            }
+          try {
+            resolve(
+              (
+                await fetch(`http://localhost:${REMOTE_DEBUGGER_PORT}/json`)
+              ).json()
+            );
+            clearInterval(stop);
+          } catch {
+            console.log("waiting for chrome to open");
+          }
         }, 500);
-    });
-    const { webSocketDebuggerUrl } = json[0];
-    const debuggerWs = new WebSocket(webSocketDebuggerUrl);
+      });
+      const { id, webSocketDebuggerUrl } = json[0];
+      const debuggerWs = new WebSocket(webSocketDebuggerUrl);
 
-    debuggerWs.on('open', () => {
+      debuggerWs.on("open", () => {
         const navigateCommand = {
-            id:1,
-            method: 'Page.navigate',
-            params: {
-                url
-            }
+          id,
+          method: "Page.navigate",
+          params: {
+            url,
+          },
         };
         debuggerWs.send(JSON.stringify(navigateCommand));
         debuggerWs.close();
-    });
-
+      });
+    }
 
     console.log("opened in chrome or click here to open chrome devtool: ", url);
-    this.browser = process;
-    return process;
+    this.browser = pro;
+    return pro;
   }
 
   public close() {

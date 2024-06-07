@@ -10,12 +10,22 @@ export class MainProcess {
 
   constructor({ port = 5270 }: { port: number; serverPort: number }) {
     this.ws = new Promise<WebSocket>((resolve) => {
-      this.openProcess(() => {
-        const socket = new WebSocket(`ws://localhost:${port}`);
-        socket.on("open", () => {
-          resolve(socket);
+      const tryResolveSocker = () => {
+        this.openProcess(() => {
+          const socket = new WebSocket(`ws://localhost:${port}`);
+          socket.on("open", () => {
+            resolve(socket);
+          });
+          socket.on("error", (e) => {
+            console.error("MainProcess Socket Error: ", e);
+            if (fs.existsSync(LOCK_FILE)) {
+              fs.unlinkSync(LOCK_FILE);
+            }
+            tryResolveSocker();
+          });
         });
-      });
+      };
+      tryResolveSocker();
     });
     this.ws.then((ws) => {
       ws.on("error", (e) => {

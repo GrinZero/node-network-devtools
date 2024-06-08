@@ -4,10 +4,23 @@ import fs from "fs";
 
 let main = new RequestCenter({ port: SERVER_PORT });
 
+let restartCount = 0;
+const restartLimit = 5;
+const cleanRestartCountInterval = 30 * 1000;
 const restart = () => {
+  restartCount++;
+  if (restartCount >= restartLimit) {
+    console.error("Restart limit reached");
+    clean();
+    return;
+  }
   main.close();
   main = new RequestCenter({ port: SERVER_PORT, requests: main.requests });
 };
+
+setInterval(() => {
+  restartCount = 0;
+}, cleanRestartCountInterval);
 
 const clean = () => {
   if (fs.existsSync(LOCK_FILE)) {

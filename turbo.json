@@ -22,6 +22,7 @@
       "cache": false,
       "persistent": true
     },
+    "start": {},
     "dev#koa": {
       "dependsOn": [
         "dev#node-network-devtools"

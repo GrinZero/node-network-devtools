@@ -11,6 +11,7 @@ router.get("/", async (ctx) => {
   const res = await axios.get("https://jsonplaceholder.typicode.com/posts");
   ctx.body = res.data;
 });
+throw new Error("error");
 
 router.get("/img", async (ctx) => {
   const res = await axios.get("https://picsum.photos/30/30");

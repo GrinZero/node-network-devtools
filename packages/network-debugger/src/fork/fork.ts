@@ -26,7 +26,7 @@ const clean = () => {
   if (fs.existsSync(LOCK_FILE)) {
     fs.unlinkSync(LOCK_FILE);
   }
-  process.exit();
+  process.exit(0);
 };
 process.on("exit", clean);
 process.on("SIGINT", clean);

@@ -1,5 +1,6 @@
 import { RequestDetail } from "../../common";
 import iconv from "iconv-lite";
+import { RequestHeaderPipe } from "./request-header-transformer";
 
 export class BodyTransformer {
   private req: RequestDetail;
@@ -9,8 +10,9 @@ export class BodyTransformer {
 
   public decodeBody() {
     const { req } = this;
+    const header = new RequestHeaderPipe(req.responseHeaders);
     const contentType =
-      req.responseHeaders?.["content-type"] || "text/plain; charset=utf-8";
+      header.getHeader("content-type") || "text/plain; charset=utf-8";
     const match = contentType.match(/charset=([^;]+)/);
     const encoding = match ? match[1] : "utf-8";
 

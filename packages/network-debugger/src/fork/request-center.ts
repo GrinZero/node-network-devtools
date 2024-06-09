@@ -3,7 +3,7 @@ import { READY_MESSAGE, RequestDetail } from "../common";
 import type { IncomingMessage } from "http";
 import zlib from "zlib";
 import { Server } from "ws";
-import { RequestHeaderTransformer, BodyTransformer } from "./pipe";
+import { RequestHeaderPipe, BodyTransformer } from "./pipe";
 
 export interface RequestCenterInitOptions {
   port?: number;
@@ -67,7 +67,7 @@ export class RequestCenter {
                 (decodedData) => {
                   request.responseData = decodedData;
                   request.responseStatusCode = message.data.statusCode;
-                  request.responseHeaders = new RequestHeaderTransformer(
+                  request.responseHeaders = new RequestHeaderPipe(
                     message.data.headers
                   ).getData();
                   this.updateRequest(request);

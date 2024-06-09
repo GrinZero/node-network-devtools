@@ -3,6 +3,7 @@ import open, { apps } from "open";
 import { type ChildProcess } from "child_process";
 import { IS_DEV_MODE, RequestDetail } from "../common";
 import { REMOTE_DEBUGGER_PORT } from "../common";
+import { RequestHeaderPipe } from "./pipe";
 
 export interface DevtoolServerInitOptions {
   port: number;
@@ -63,8 +64,8 @@ export class DevtoolServer {
   public async open() {
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`;
 
-    if(IS_DEV_MODE){
-      console.log(`In dev mode, open chrome devtool manually: ${url}`)
+    if (IS_DEV_MODE) {
+      console.log(`In dev mode, open chrome devtool manually: ${url}`);
       return;
     }
 
@@ -134,6 +135,9 @@ export class DevtoolServer {
   async requestWillBeSent(request: RequestDetail) {
     this.timestamp = Date.now() - this.startTime;
 
+    const headerPipe = new RequestHeaderPipe(request.requestHeaders);
+    const contentType = headerPipe.getHeader("content-type")
+
     return this.send({
       method: "Network.requestWillBeSent",
       params: {
@@ -148,7 +152,9 @@ export class DevtoolServer {
           mixedContentType: "none",
           ...(request.requestData
             ? {
-                postData: request.requestData,
+                postData: contentType?.includes("application/json")
+                  ? JSON.stringify(request.requestData)
+                  : request.requestData,
               }
             : {}),
         },
@@ -164,9 +170,9 @@ export class DevtoolServer {
 
   async responseReceived(request: RequestDetail) {
     this.updateTimestamp();
-    const headers = request.responseHeaders;
+    const headers = new RequestHeaderPipe(request.responseHeaders);
 
-    const contentType = headers["content-type"] || "text/plain; charset=utf-8";
+    const contentType = headers.getHeader("content-type") || "text/plain; charset=utf-8";
 
     const type = (() => {
       if (/image/.test(contentType)) {

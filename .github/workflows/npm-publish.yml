@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 16
           registry-url: https://registry.npmjs.org/
-      - run: cd packages/node-network-devtools
+      - run: cd packages/network-debugger
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}

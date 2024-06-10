@@ -30,6 +30,9 @@ node network devtools正是为了解决这个问题，它一个允许您使用ch
   - [x] payload
   - [x] json str response body
   - [x] binary response body
+  - [x] stack follow
+    - [x] show stack  
+    - [ ] click to jump
 - [ ] WebSocket
   - [ ] messages
   - [ ] payload

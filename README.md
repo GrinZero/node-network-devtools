@@ -33,6 +33,9 @@ Node network devtools is designed to address this issue by allowing you to debug
   - [x] payload
   - [x] json str response body
   - [x] binary response body
+  - [x] stack follow
+    - [x] show stack  
+    - [ ] click to jump
 - [ ] WebSocket
   - [ ] messages
   - [ ] payload

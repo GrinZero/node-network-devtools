@@ -1,7 +1,40 @@
+import { getStackFrames, initiatorStackPipe } from "./utils/stack";
+
+export interface CDPCallFrame {
+  columnNumber: number;
+  functionName: string;
+  lineNumber: number;
+  url: string;
+  scriptId: string;
+}
+
 export class RequestDetail {
   id: string;
   constructor() {
     this.id = Math.random().toString(36).slice(2);
+
+    const frames = initiatorStackPipe(getStackFrames());
+
+    const callFrames = frames.map((frame) => {
+      const scriptId = Math.random().toString(36).slice(2);
+      const fileName = frame.fileName || "";
+      return {
+        columnNumber: frame.columnNumber || 0,
+        functionName: frame.functionName || "",
+        lineNumber: frame.lineNumber || 0,
+        url: fileName.startsWith("/") ? `file://${fileName}` : fileName,
+        scriptId,
+      };
+    });
+
+    if (callFrames.length > 0) {
+      this.initiator = {
+        type: "script",
+        stack: {
+          callFrames,
+        },
+      };
+    }
   }
 
   url?: string;
@@ -17,6 +50,13 @@ export class RequestDetail {
 
   requestStartTime?: number;
   requestEndTime?: number;
+
+  initiator?: {
+    type: string;
+    stack: {
+      callFrames: CDPCallFrame[];
+    };
+  };
 }
 export const LOCK_FILE = "request-center.lock";
 export const PORT = Number(process.env.NETWORK_PORT || 5270);

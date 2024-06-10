@@ -160,9 +160,7 @@ export class DevtoolServer {
         },
         timestamp: this.timestamp,
         wallTime: request.requestStartTime,
-        initiator: {
-          type: "other",
-        },
+        initiator: request.initiator,
         type: "Fetch",
       },
     });

@@ -22,7 +22,8 @@ export default defineConfig(({ mode }) => ({
         "ws",
         "iconv-lite",
         "zlib",
-        "fs"
+        "fs",
+        "stack-trace"
       ],
       output: {
         globals: {
@@ -33,7 +34,8 @@ export default defineConfig(({ mode }) => ({
           "ws": "ws",
           "iconv-lite": "iconv",
           "zlib": "zlib",
-          "fs": "fs"
+          "fs": "fs",
+          "stack-trace": "stackTrace"
         },
       },
     },

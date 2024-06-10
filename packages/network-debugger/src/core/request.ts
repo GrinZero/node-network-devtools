@@ -1,6 +1,7 @@
 import { RequestOptions, IncomingMessage, ClientRequest } from "http";
 import { RequestDetail } from "../common";
 import { MainProcess } from "./fork";
+import { get } from "stack-trace";
 
 export interface RequestFn {
   (
@@ -46,7 +47,6 @@ function proxyCallbackFactory(
 ) {
   return (response: IncomingMessage) => {
     requestDetail.responseHeaders = response.headers;
-
     if (typeof actualCallBack === "function") {
       actualCallBack(response);
     }
@@ -56,6 +56,7 @@ function proxyCallbackFactory(
 }
 
 export function requestProxyFactory(
+  this: any,
   actualRequestHandler: any,
   isHttps: boolean,
   mainProcess: MainProcess
@@ -78,7 +79,6 @@ export function requestProxyFactory(
     }
 
     const requestDetail = new RequestDetail();
-    requestDetail.requestStartTime = Date.now();
 
     if (typeof url === "string") {
       requestDetail.url = url;

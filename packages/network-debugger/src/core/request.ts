@@ -50,7 +50,7 @@ function proxyCallbackFactory(
     if (typeof actualCallBack === "function") {
       actualCallBack(response);
     }
-
+    
     mainProcess.responseRequest(requestDetail.id, response);
   };
 }

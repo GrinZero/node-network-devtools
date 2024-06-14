@@ -57,24 +57,8 @@ export class RequestCenter {
           case "registerRequest":
           case "updateRequest":
           case "endRequest":
-            this[_message.type](_message.data);
-            break;
           case "responseData":
-            const request = this.getRequest(message.data.id);
-            if (request) {
-              this.tryDecompression(
-                Buffer.from(message.data.rawData),
-                (decodedData) => {
-                  request.responseData = decodedData;
-                  request.responseStatusCode = message.data.statusCode;
-                  request.responseHeaders = new RequestHeaderPipe(
-                    message.data.headers
-                  ).getData();
-                  this.updateRequest(request);
-                  this.endRequest(request);
-                }
-              );
-            }
+            this[_message.type](_message.data);
             break;
         }
       });
@@ -88,61 +72,44 @@ export class RequestCenter {
     return server;
   }
 
+  public responseData(data: {
+    id: string;
+    rawData: Array<number>;
+    statusCode: number;
+    headers: Record<string, string>;
+  }) {
+    const { id, rawData: _rawData, statusCode, headers } = data;
+    const request = this.getRequest(id);
+    const rawData = Buffer.from(_rawData);
+    request.responseInfo.encodedDataLength = rawData.length;
+    if (request) {
+      this.tryDecompression(rawData, (decodedData) => {
+        request.responseData = decodedData;
+        request.responseInfo.dataLength = decodedData.length;
+        request.responseStatusCode = statusCode;
+        request.responseHeaders = new RequestHeaderPipe(headers).getData();
+        this.updateRequest(request);
+        this.endRequest(request);
+      });
+    }
+  }
+
   private getRequest(id: string) {
     return this.requests[id];
   }
 
   public registerRequest(request: RequestDetail) {
     this.requests[request.id] = request;
-    // console.log("registerRequest", request);
     this.devtool.requestWillBeSent(request);
   }
 
   public updateRequest(request: RequestDetail) {
     this.requests[request.id] = request;
-    // console.log("updateRequest", request);
   }
 
   public endRequest(request: RequestDetail) {
     request.requestEndTime = request.requestEndTime || Date.now();
-    // console.log("endRequest", request);
     this.devtool.responseReceived(request);
-  }
-
-  public responseRequest(id: string, response: IncomingMessage) {
-    const requestDetail = this.requests[id];
-    if (!requestDetail) {
-      return;
-    }
-
-    const responseBuffer: Buffer[] = [];
-
-    requestDetail.responseStatusCode = response.statusCode;
-
-    response.on("data", (chunk: any) => {
-      responseBuffer.push(chunk);
-    });
-
-    response.on("aborted", () => {
-      requestDetail.responseStatusCode = 0;
-      requestDetail.requestEndTime = new Date().getTime();
-      this.updateRequest(requestDetail);
-    });
-
-    response.on("error", () => {
-      requestDetail.responseStatusCode = 0;
-      requestDetail.requestEndTime = new Date().getTime();
-      this.updateRequest(requestDetail);
-    });
-
-    response.on("end", () => {
-      const rawData = Buffer.concat(responseBuffer);
-      this.tryDecompression(rawData, (decodedData) => {
-        requestDetail.responseData = decodedData;
-        this.updateRequest(requestDetail);
-        this.endRequest(requestDetail);
-      });
-    });
   }
 
   private tryDecompression(data: Buffer, callback: (result: Buffer) => void) {

@@ -109,7 +109,7 @@ export class MainProcess {
             type: "responseData",
             data: {
               id: id,
-              rawData: rawData, // Convert to string
+              rawData: rawData,
               statusCode: response.statusCode,
               headers: response.headers,
             },

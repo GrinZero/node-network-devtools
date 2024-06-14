@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "lint": "turbo lint",
     "start": "turbo start",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "dev:main": "turbo dev --filter=node-network-devtools"
   },
   "devDependencies": {
     "prettier": "^3.2.5",

@@ -12,6 +12,7 @@ export class RequestDetail {
   id: string;
   constructor() {
     this.id = Math.random().toString(36).slice(2);
+    this.responseInfo = {};
 
     const frames = initiatorStackPipe(getStackFrames());
 
@@ -47,6 +48,10 @@ export class RequestDetail {
   responseData: any;
   responseStatusCode?: number;
   responseHeaders: any;
+  responseInfo: Partial<{
+    encodedDataLength: number;
+    dataLength: number;
+  }>;
 
   requestStartTime?: number;
   requestEndTime?: number;

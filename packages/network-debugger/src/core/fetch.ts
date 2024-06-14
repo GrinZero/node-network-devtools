@@ -42,11 +42,16 @@ function fetchResponseHandlerFactory(
     requestDetail.responseHeaders = headersToObject(response.headers);
     requestDetail.responseStatusCode = response.status || 0;
 
+
     response
       .clone()
       .arrayBuffer()
       .then((buffer) => {
-        requestDetail.responseData = Buffer.from(buffer);
+        const responseData = Buffer.from(buffer);
+        requestDetail.responseData = responseData;
+        requestDetail.responseInfo.dataLength = responseData.length;
+        // TODO: use content-encoding to determine the actual length
+        requestDetail.responseInfo.encodedDataLength = responseData.length;
       })
       .finally(() => {
         mainProcess.updateRequest(requestDetail);
@@ -62,7 +67,7 @@ function fetchErrorHandlerFactory(
   mainProcess: MainProcess
 ) {
   return (err: unknown) => {
-    requestDetail.requestEndTime = new Date().getTime();
+    requestDetail.requestEndTime = Date.now();
     requestDetail.responseStatusCode = 0;
     mainProcess.updateRequest(requestDetail);
     mainProcess.endRequest(requestDetail);

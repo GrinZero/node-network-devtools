@@ -58,7 +58,7 @@ export class DevtoolServer {
   }
 
   private updateTimestamp() {
-    this.timestamp = Date.now() - this.startTime;
+    this.timestamp = (Date.now() - this.startTime) / 1000;
   }
 
   public async open() {
@@ -133,10 +133,10 @@ export class DevtoolServer {
   }
 
   async requestWillBeSent(request: RequestDetail) {
-    this.timestamp = Date.now() - this.startTime;
+    this.updateTimestamp();
 
     const headerPipe = new RequestHeaderPipe(request.requestHeaders);
-    const contentType = headerPipe.getHeader("content-type")
+    const contentType = headerPipe.getHeader("content-type");
 
     return this.send({
       method: "Network.requestWillBeSent",
@@ -170,7 +170,8 @@ export class DevtoolServer {
     this.updateTimestamp();
     const headers = new RequestHeaderPipe(request.responseHeaders);
 
-    const contentType = headers.getHeader("content-type") || "text/plain; charset=utf-8";
+    const contentType =
+      headers.getHeader("content-type") || "text/plain; charset=utf-8";
 
     const type = (() => {
       if (/image/.test(contentType)) {
@@ -202,7 +203,7 @@ export class DevtoolServer {
           statusText: request.responseStatusCode === 200 ? "OK" : "",
           headers: request.responseHeaders,
           connectionReused: false,
-          encodedDataLength: request.responseData.length,
+          encodedDataLength: request.responseInfo.encodedDataLength,
           charset: "utf-8",
           mimeType: toMimeType(contentType),
         },
@@ -215,8 +216,8 @@ export class DevtoolServer {
       params: {
         requestId: request.id,
         timestamp: this.timestamp,
-        dataLength: request.responseData.length,
-        encodedDataLength: request.responseData.length,
+        dataLength: request.responseInfo.dataLength,
+        encodedDataLength: request.responseInfo.encodedDataLength,
       },
     });
 
@@ -226,7 +227,7 @@ export class DevtoolServer {
       params: {
         requestId: request.id,
         timestamp: this.timestamp,
-        encodedDataLength: request.responseData.length,
+        encodedDataLength: request.responseInfo.encodedDataLength,
       },
     });
   }

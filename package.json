@@ -7,11 +7,17 @@
     "lint": "turbo lint",
     "start": "turbo start",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "dev:main": "turbo dev --filter=node-network-devtools"
+    "dev:main": "turbo dev --filter=node-network-devtools",
+    "prepare": "husky install"
   },
   "devDependencies": {
+    "@commitlint/config-conventional": "^19.2.2",
+    "commitlint": "^19.3.0",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.7",
     "prettier": "^3.2.5",
-    "turbo": "latest"
+    "turbo": "latest",
+    "@repo/eslint-config": "workspace:*"
   },
   "packageManager": "pnpm@8.9.0",
   "engines": {

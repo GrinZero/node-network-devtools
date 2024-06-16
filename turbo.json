@@ -1,22 +1,13 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": [
-    "**/.env.*local"
-  ],
-  "tasks": {
+  "globalDependencies": ["**/.env.*local"],
+  "pipeline": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
-      "outputs": [
-        ".next/**",
-        "!.next/cache/**"
-      ]
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**"]
     },
     "lint": {
-      "dependsOn": [
-        "^lint"
-      ]
+      "dependsOn": ["^lint"]
     },
     "dev": {
       "cache": false,
@@ -24,9 +15,7 @@
     },
     "start": {},
     "dev#koa": {
-      "dependsOn": [
-        "dev#node-network-devtools"
-      ]
+      "dependsOn": ["dev#node-network-devtools"]
     }
   }
 }

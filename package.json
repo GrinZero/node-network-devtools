@@ -8,6 +8,7 @@
     "start": "turbo start",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "dev:main": "turbo dev --filter=node-network-devtools",
+    "dev:koa": "turbo dev --filter=koa",
     "prepare": "husky install"
   },
   "devDependencies": {
@@ -16,7 +17,7 @@
     "husky": "^9.0.11",
     "lint-staged": "^15.2.7",
     "prettier": "^3.2.5",
-    "turbo": "latest",
+    "turbo": "^1.13.0",
     "@repo/eslint-config": "workspace:*"
   },
   "packageManager": "pnpm@8.9.0",

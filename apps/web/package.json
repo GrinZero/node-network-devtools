@@ -1,18 +1,22 @@
 {
   "name": "web",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.0.1",
+  "description": "A VuePress project",
+  "license": "MIT",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "vitepress dev --port=5800",
-    "build": "vitepress build",
-    "docs:preview": "vitepress preview"
+    "build": "vuepress build docs",
+    "clean-dev": "vuepress dev docs --clean-cache",
+    "dev": "vuepress dev docs --port=5800",
+    "update-package": "pnpm dlx vp-update"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
-    "vitepress": "^1.2.3"
+    "@vuepress/bundler-vite": "2.0.0-rc.13",
+    "@vuepress/theme-default": "2.0.0-rc.32",
+    "vue": "^3.4.0",
+    "vuepress": "2.0.0-rc.13"
+  },
+  "dependencies": {
+    "vuepress-theme-hope": "2.0.0-rc.48"
   }
 }

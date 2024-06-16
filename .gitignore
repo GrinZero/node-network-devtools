@@ -40,4 +40,6 @@ yarn-error.log*
 # Node Network Devtools
 request-center.lock
 
-cache
+# Vuepress
+.cache
+.temp

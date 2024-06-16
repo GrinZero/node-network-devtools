@@ -31,7 +31,7 @@ node network devtools正是为了解决这个问题，它一个允许您使用ch
   - [x] json str response body
   - [x] binary response body
   - [x] stack follow
-    - [x] show stack  
+    - [x] show stack
     - [ ] click to jump
 - [ ] WebSocket
   - [ ] messages
@@ -39,7 +39,7 @@ node network devtools正是为了解决这个问题，它一个允许您使用ch
   - [ ] ...
 - [ ] Compatibility
   - [x] commonjs
-  - [ ] modulejs
+  - [x] esmodule
 
 ## 👀 预览
 
@@ -73,7 +73,7 @@ request-center.lock
 ```typescript
 import { register } from 'node-network-devtools'
 
-process.env.NODE_ENV === "development" && register()
+process.env.NODE_ENV === 'development' && register()
 ```
 
 ## 📚 文档

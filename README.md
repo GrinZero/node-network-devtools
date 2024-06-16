@@ -18,7 +18,6 @@
 
 ---
 
-
 English | [简体中文](README-zh_CN.md)
 
 ## 📖 Introduction
@@ -34,7 +33,7 @@ Node network devtools is designed to address this issue by allowing you to debug
   - [x] json str response body
   - [x] binary response body
   - [x] stack follow
-    - [x] show stack  
+    - [x] show stack
     - [ ] click to jump
 - [ ] WebSocket
   - [ ] messages
@@ -42,12 +41,11 @@ Node network devtools is designed to address this issue by allowing you to debug
   - [ ] ...
 - [ ] Compatibility
   - [x] commonjs
-  - [ ] modulejs
+  - [x] esmodule
 
 ## 👀 Preview
 
 ![img](https://github.com/GrinZero/extreme/assets/70185413/24de6b48-8f5e-4cf4-aff0-23f4735a4b57)
-
 
 ## 📦 Quick Start
 
@@ -77,12 +75,11 @@ Just add the following code to the entry file of your project.
 ```typescript
 import { register } from 'node-network-devtools'
 
-process.env.NODE_ENV === "development" && register()
+process.env.NODE_ENV === 'development' && register()
 ```
 
 ## 📚 Documentation
 
 If you encounter any problems, you can try cleaning the `request-center.lock` file
-
 
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FGrinZero%2Fnode-network-devtools&labelColor=%237fa1f7&countColor=%23697689)

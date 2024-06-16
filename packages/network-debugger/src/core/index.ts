@@ -1,8 +1,8 @@
-const http = require("http");
-const https = require("https");
-import { requestProxyFactory } from "./request";
-import { MainProcess } from "./fork";
-import { proxyFetch } from "./fetch";
+import http from 'http'
+import https from 'https'
+import { requestProxyFactory } from './request'
+import { MainProcess } from './fork'
+import { proxyFetch } from './fetch'
 
 /**
  * @mark 暂时不支持
@@ -12,31 +12,27 @@ export interface RegisterOptions {
    * @description 主进程端口
    * @default 5270
    */
-  port?: number;
+  port?: number
   /**
    * @description CDP服务端口
    */
-  serverPort?: number;
+  serverPort?: number
 }
 
 export async function register(props: RegisterOptions) {
-  const { port = 5270, serverPort = 5271 } = props || {};
+  const { port = 5270, serverPort = 5271 } = props || {}
   const mainProcess = new MainProcess({
     port,
-    serverPort,
-  });
+    serverPort
+  })
 
-  const agents = [http, https];
+  const agents = [http, https]
 
-  proxyFetch(mainProcess);
+  proxyFetch(mainProcess)
 
   agents.forEach((agent) => {
-    const actualRequestHandlerFn = agent.request;
+    const actualRequestHandlerFn = agent.request
     // @ts-ignore
-    agent.request = requestProxyFactory(
-      actualRequestHandlerFn,
-      agent === https,
-      mainProcess
-    );
-  });
+    agent.request = requestProxyFactory(actualRequestHandlerFn, agent === https, mainProcess)
+  })
 }

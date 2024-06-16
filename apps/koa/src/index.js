@@ -21,6 +21,27 @@ router.get('/post', async (ctx) => {
   ctx.body = res.data
 })
 
+router.get('/put', async (ctx) => {
+  const res = await axios.put('https://jsonplaceholder.typicode.com/posts/1', {
+    title: 'foo',
+    body: 'bar',
+    userId: 101
+  })
+  ctx.body = res.data
+})
+
+router.get('/patch', async (ctx) => {
+  const res = await axios.patch('https://jsonplaceholder.typicode.com/posts/1', {
+    title: 'xxx'
+  })
+  ctx.body = res.data
+})
+
+router.get('/delete', async (ctx) => {
+  const res = await axios.delete('https://jsonplaceholder.typicode.com/posts/1')
+  ctx.body = res.data
+})
+
 router.get('/img', async (ctx) => {
   const res = await axios.get('https://picsum.photos/30/30')
   ctx.body = res.data

@@ -142,7 +142,7 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(@types/node@20.11.0)
 
-  apps/vuepress-starter:
+  apps/web:
     devDependencies:
       '@vuepress/bundler-vite':
         specifier: ^2.0.0-rc.7

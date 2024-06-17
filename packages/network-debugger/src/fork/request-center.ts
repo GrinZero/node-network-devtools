@@ -1,147 +1,157 @@
-import { DevtoolServer } from "./devtool";
-import { READY_MESSAGE, RequestDetail } from "../common";
-import type { IncomingMessage } from "http";
-import zlib from "zlib";
-import { Server } from "ws";
-import { RequestHeaderPipe, BodyTransformer } from "./pipe";
+import { DevtoolServer } from './devtool'
+import { READY_MESSAGE, RequestDetail } from '../common'
+import type { IncomingMessage } from 'http'
+import zlib from 'zlib'
+import { Server } from 'ws'
+import { RequestHeaderPipe, BodyTransformer } from './pipe'
+import { genScriptParsed } from '../core/resource'
 
 export interface RequestCenterInitOptions {
-  port?: number;
-  requests?: Record<string, RequestDetail>;
+  port?: number
+  requests?: Record<string, RequestDetail>
 }
 
 export class RequestCenter {
-  public requests: Record<string, RequestDetail>;
-  private devtool: DevtoolServer;
-  private server: Server;
-  constructor({
-    port,
-    requests,
-  }: {
-    port: number;
-    requests?: Record<string, RequestDetail>;
-  }) {
-    this.requests = requests || {};
+  public requests: Record<string, RequestDetail>
+  private devtool: DevtoolServer
+  private server: Server
+  constructor({ port, requests }: { port: number; requests?: Record<string, RequestDetail> }) {
+    this.requests = requests || {}
     this.devtool = new DevtoolServer({
-      port,
-    });
+      port
+    })
     this.devtool.on((error, message) => {
       if (error) {
-        return;
+        return
       }
 
-      if (message.method === "Network.getResponseBody") {
-        const req = this.getRequest(message.params.requestId);
+      if (message.method === 'Network.getResponseBody') {
+        const req = this.getRequest(message.params.requestId)
         if (!req) {
-          return;
+          return
         }
 
-        const body = new BodyTransformer(req).decodeBody();
+        const body = new BodyTransformer(req).decodeBody()
 
         this.devtool.send({
           id: message.id,
-          result: body,
-        });
+          result: body
+        })
       }
-    });
-    this.server = this.initServer();
+
+      if (message.method === 'Debugger.getScriptSource') {
+        // 获取脚本内容
+        this.devtool.send({
+          id: message.id,
+          method: 'Debugger.getScriptSource',
+          result: {
+            // TODO:读取实际脚本内容
+            scriptSource: 'var passort=passort'
+          }
+        })
+      }
+    })
+    this.server = this.initServer()
+
+    // 初始化脚本信息
+    genScriptParsed(this.devtool)
   }
 
   private initServer() {
-    const server = new Server({ port: 5270 });
-    server.on("connection", (ws) => {
-      ws.on("message", (data) => {
-        const message = JSON.parse(data.toString());
-        const _message = message as { type: string; data: any };
+    const server = new Server({ port: 5270 })
+    server.on('connection', (ws) => {
+      ws.on('message', (data) => {
+        const message = JSON.parse(data.toString())
+        const _message = message as { type: string; data: any }
         switch (_message.type) {
-          case "registerRequest":
-          case "updateRequest":
-          case "endRequest":
-          case "responseData":
-            this[_message.type](_message.data);
-            break;
+          case 'registerRequest':
+          case 'updateRequest':
+          case 'endRequest':
+          case 'responseData':
+            this[_message.type](_message.data)
+            break
         }
-      });
-    });
-    server.on("listening", () => {
+      })
+    })
+    server.on('listening', () => {
       if (process.send) {
-        process.send(READY_MESSAGE);
+        process.send(READY_MESSAGE)
       }
-    });
+    })
 
-    return server;
+    return server
   }
 
   public responseData(data: {
-    id: string;
-    rawData: Array<number>;
-    statusCode: number;
-    headers: Record<string, string>;
+    id: string
+    rawData: Array<number>
+    statusCode: number
+    headers: Record<string, string>
   }) {
-    const { id, rawData: _rawData, statusCode, headers } = data;
-    const request = this.getRequest(id);
-    const rawData = Buffer.from(_rawData);
-    request.responseInfo.encodedDataLength = rawData.length;
+    const { id, rawData: _rawData, statusCode, headers } = data
+    const request = this.getRequest(id)
+    const rawData = Buffer.from(_rawData)
+    request.responseInfo.encodedDataLength = rawData.length
     if (request) {
       this.tryDecompression(rawData, (decodedData) => {
-        request.responseData = decodedData;
-        request.responseInfo.dataLength = decodedData.length;
-        request.responseStatusCode = statusCode;
-        request.responseHeaders = new RequestHeaderPipe(headers).getData();
-        this.updateRequest(request);
-        this.endRequest(request);
-      });
+        request.responseData = decodedData
+        request.responseInfo.dataLength = decodedData.length
+        request.responseStatusCode = statusCode
+        request.responseHeaders = new RequestHeaderPipe(headers).getData()
+        this.updateRequest(request)
+        this.endRequest(request)
+      })
     }
   }
 
   private getRequest(id: string) {
-    return this.requests[id];
+    return this.requests[id]
   }
 
   public registerRequest(request: RequestDetail) {
-    this.requests[request.id] = request;
-    this.devtool.requestWillBeSent(request);
+    this.requests[request.id] = request
+    this.devtool.requestWillBeSent(request)
   }
 
   public updateRequest(request: RequestDetail) {
-    this.requests[request.id] = request;
+    this.requests[request.id] = request
   }
 
   public endRequest(request: RequestDetail) {
-    request.requestEndTime = request.requestEndTime || Date.now();
-    this.devtool.responseReceived(request);
+    request.requestEndTime = request.requestEndTime || Date.now()
+    this.devtool.responseReceived(request)
   }
 
   private tryDecompression(data: Buffer, callback: (result: Buffer) => void) {
     const decompressors: Array<
       (data: Buffer, cb: (err: Error | null, result: Buffer) => void) => void
-    > = [zlib.gunzip, zlib.inflate, zlib.brotliDecompress];
+    > = [zlib.gunzip, zlib.inflate, zlib.brotliDecompress]
 
-    let attempts = 0;
+    let attempts = 0
 
     const tryNext = () => {
       if (attempts >= decompressors.length) {
-        callback(data); // 理论上没有压缩
-        return;
+        callback(data) // 理论上没有压缩
+        return
       }
 
-      const decompressor = decompressors[attempts];
-      attempts += 1;
+      const decompressor = decompressors[attempts]
+      attempts += 1
 
       decompressor(data, (err, result) => {
         if (!err) {
-          callback(result);
+          callback(result)
         } else {
-          tryNext();
+          tryNext()
         }
-      });
-    };
+      })
+    }
 
-    tryNext();
+    tryNext()
   }
 
   public close() {
-    this.server.close();
-    this.devtool.close();
+    this.server.close()
+    this.devtool.close()
   }
 }

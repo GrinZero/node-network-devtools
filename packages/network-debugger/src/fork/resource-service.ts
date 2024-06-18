@@ -64,10 +64,8 @@ export class ResourceService {
       return
     }
     const fileSystemPath = fileURLToPath(filePath)
-    fs.readFile(fileSystemPath, 'utf-8', (err, data) => {
-      if (err) {
-        return
-      }
+    try {
+      const data = fs.readFileSync(fileSystemPath, 'utf-8')
       this.devtool.send({
         id: id,
         method: 'Debugger.getScriptSourceResponse',
@@ -75,8 +73,11 @@ export class ResourceService {
           scriptSource: data
         }
       })
-    })
+    } catch (err) {
+      console.error('Error reading file:', err)
+    }
   }
+  private scriptIdCounter = 0
   // 传入路径，建立映射
   private getScriptListByTraverseDir(
     directoryPath: string,
@@ -84,6 +85,7 @@ export class ResourceService {
   ) {
     const scriptList = []
     const stack = [directoryPath]
+    let scriptId = this.scriptIdCounter
     while (stack.length > 0) {
       const currentPath = stack.pop()!
       const items = fs.readdirSync(currentPath)
@@ -102,7 +104,7 @@ export class ResourceService {
             url: url.href,
             scriptLanguage: getScriptLanguageByFileName(url.href),
             embedderName: url.href,
-            scriptId: scriptList.length,
+            scriptId: ++scriptId,
             // TODO: SourceMap 实际应该是打包后的代码才需要？ 但是这里显示的是实际的代码
             sourceMapURL: '',
             hasSourceURL: false
@@ -110,17 +112,17 @@ export class ResourceService {
         }
       }
     }
+    this.scriptIdCounter += scriptList.length
     return scriptList
   }
+
   private initScriptMap() {
     const scriptList = [
       ...this.getScriptListByTraverseDir(process.cwd()),
       ...this.getScriptListByTraverseDir(__dirname)
     ]
-    let scriptId = 0
     scriptList.forEach((script) => {
-      scriptId += 1
-      this.addMapping(script.url, '' + scriptId)
+      this.addMapping(script.url, '' + script.scriptId)
       this.devtool.send({
         method: 'Debugger.scriptParsed',
         params: script

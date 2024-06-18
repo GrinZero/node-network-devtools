@@ -1,73 +1,73 @@
-import { getStackFrames, initiatorStackPipe } from "./utils/stack";
+import { getStackFrames, initiatorStackPipe } from './utils/stack'
 
 export interface CDPCallFrame {
-  columnNumber: number;
-  functionName: string;
-  lineNumber: number;
-  url: string;
-  scriptId: string;
+  columnNumber: number
+  functionName: string
+  lineNumber: number
+  url: string
+  scriptId: string
 }
 
 export class RequestDetail {
-  id: string;
+  id: string
   constructor() {
-    this.id = Math.random().toString(36).slice(2);
-    this.responseInfo = {};
+    this.id = Math.random().toString(36).slice(2)
+    this.responseInfo = {}
 
-    const frames = initiatorStackPipe(getStackFrames());
+    const frames = initiatorStackPipe(getStackFrames())
 
+    let scriptId = 0
+    // TODO: 进程通信拿到scriptId映射
     const callFrames = frames.map((frame) => {
-      const scriptId = Math.random().toString(36).slice(2);
-      const fileName = frame.fileName || "";
+      scriptId += 1
+      const fileName = frame.fileName || ''
       return {
         columnNumber: frame.columnNumber || 0,
-        functionName: frame.functionName || "",
+        functionName: frame.functionName || '',
         lineNumber: frame.lineNumber || 0,
-        url: fileName.startsWith("/") ? `file://${fileName}` : fileName,
-        scriptId,
-      };
-    });
+        url: fileName.startsWith('/') ? `file://${fileName}` : fileName,
+        scriptId
+      }
+    })
 
     if (callFrames.length > 0) {
       this.initiator = {
-        type: "script",
+        type: 'script',
         stack: {
-          callFrames,
-        },
-      };
+          callFrames
+        }
+      }
     }
   }
 
-  url?: string;
-  method?: string;
-  cookies: any;
+  url?: string
+  method?: string
+  cookies: any
 
-  requestHeaders: any;
-  requestData: any;
+  requestHeaders: any
+  requestData: any
 
-  responseData: any;
-  responseStatusCode?: number;
-  responseHeaders: any;
+  responseData: any
+  responseStatusCode?: number
+  responseHeaders: any
   responseInfo: Partial<{
-    encodedDataLength: number;
-    dataLength: number;
-  }>;
+    encodedDataLength: number
+    dataLength: number
+  }>
 
-  requestStartTime?: number;
-  requestEndTime?: number;
+  requestStartTime?: number
+  requestEndTime?: number
 
   initiator?: {
-    type: string;
+    type: string
     stack: {
-      callFrames: CDPCallFrame[];
-    };
-  };
+      callFrames: CDPCallFrame[]
+    }
+  }
 }
-export const LOCK_FILE = "request-center.lock";
-export const PORT = Number(process.env.NETWORK_PORT || 5270);
-export const SERVER_PORT = Number(process.env.NETWORK_SERVER_PORT || 5271);
-export const REMOTE_DEBUGGER_PORT = Number(
-  process.env.REMOTE_DEBUGGER_PORT || 9333
-);
-export const IS_DEV_MODE = process.env.NETWORK_DEBUG_MODE === "true";
-export const READY_MESSAGE = "ready";
+export const LOCK_FILE = 'request-center.lock'
+export const PORT = Number(process.env.NETWORK_PORT || 5270)
+export const SERVER_PORT = Number(process.env.NETWORK_SERVER_PORT || 5271)
+export const REMOTE_DEBUGGER_PORT = Number(process.env.REMOTE_DEBUGGER_PORT || 9333)
+export const IS_DEV_MODE = process.env.NETWORK_DEBUG_MODE === 'true'
+export const READY_MESSAGE = 'ready'

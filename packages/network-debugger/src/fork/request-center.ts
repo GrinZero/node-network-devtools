@@ -4,7 +4,7 @@ import type { IncomingMessage } from 'http'
 import zlib from 'zlib'
 import { Server } from 'ws'
 import { RequestHeaderPipe, BodyTransformer } from './pipe'
-import { genScriptParsed } from '../core/resource'
+import { ResourceCenter, genScriptParsed } from '../core/resource'
 
 export interface RequestCenterInitOptions {
   port?: number
@@ -15,11 +15,13 @@ export class RequestCenter {
   public requests: Record<string, RequestDetail>
   private devtool: DevtoolServer
   private server: Server
+  private resourceCenter: ResourceCenter
   constructor({ port, requests }: { port: number; requests?: Record<string, RequestDetail> }) {
     this.requests = requests || {}
     this.devtool = new DevtoolServer({
       port
     })
+    this.resourceCenter = new ResourceCenter(this.devtool)
     this.devtool.on((error, message) => {
       if (error) {
         return
@@ -38,23 +40,9 @@ export class RequestCenter {
           result: body
         })
       }
-
-      if (message.method === 'Debugger.getScriptSource') {
-        // 获取脚本内容
-        this.devtool.send({
-          id: message.id,
-          method: 'Debugger.getScriptSource',
-          result: {
-            // TODO:读取实际脚本内容
-            scriptSource: 'var passort=passort'
-          }
-        })
-      }
     })
     this.server = this.initServer()
-
-    // 初始化脚本信息
-    genScriptParsed(this.devtool)
+    this.resourceCenter.init()
   }
 
   private initServer() {

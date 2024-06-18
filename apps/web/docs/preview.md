@@ -2,4 +2,3 @@
 
 ## Demo（GIF）
 
-![Preview](preview.gif)

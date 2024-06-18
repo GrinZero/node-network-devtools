@@ -1,48 +1,110 @@
 import { DevtoolServer } from './devtool'
 import { READY_MESSAGE, RequestDetail } from '../common'
-import type { IncomingMessage } from 'http'
 import zlib from 'zlib'
 import { Server } from 'ws'
-import { RequestHeaderPipe, BodyTransformer } from './pipe'
-import { ResourceCenter, genScriptParsed } from '../core/resource'
+import { RequestHeaderPipe } from './pipe'
+import { log } from '../utils'
 
 export interface RequestCenterInitOptions {
   port?: number
   requests?: Record<string, RequestDetail>
 }
 
+export type DevtoolMessageListener = <T = any>(props: {
+  data: T
+  devtool: DevtoolServer
+  request: RequestDetail
+  id: string
+}) => void
+
 export class RequestCenter {
   public requests: Record<string, RequestDetail>
   private devtool: DevtoolServer
   private server: Server
-  private resourceCenter: ResourceCenter
+  private listeners: Record<string, DevtoolMessageListener[] | undefined> = {}
   constructor({ port, requests }: { port: number; requests?: Record<string, RequestDetail> }) {
     this.requests = requests || {}
     this.devtool = new DevtoolServer({
       port
     })
-    this.resourceCenter = new ResourceCenter(this.devtool)
     this.devtool.on((error, message) => {
       if (error) {
+        log(error)
         return
       }
 
-      if (message.method === 'Network.getResponseBody') {
-        const req = this.getRequest(message.params.requestId)
-        if (!req) {
-          return
-        }
-
-        const body = new BodyTransformer(req).decodeBody()
-
-        this.devtool.send({
-          id: message.id,
-          result: body
-        })
+      const listenerList = this.listeners[message.method]
+      if (!listenerList) {
+        return
       }
+
+      const request = this.getRequest(message.params.requestId)
+      if (!request) {
+        console.log('request not found', message.params.requestId)
+        return
+      }
+      listenerList.forEach((listener) => {
+        listener({
+          data: message.params,
+          devtool: this.devtool,
+          request,
+          id: message.id
+        })
+      })
     })
     this.server = this.initServer()
-    this.resourceCenter.init()
+  }
+
+  public on(method: string, listener: DevtoolMessageListener) {
+    if (!this.listeners[method]) {
+      this.listeners[method] = []
+    }
+    this.listeners[method]!.push(listener)
+  }
+
+  public responseData(data: {
+    id: string
+    rawData: Array<number>
+    statusCode: number
+    headers: Record<string, string>
+  }) {
+    const { id, rawData: _rawData, statusCode, headers } = data
+    const request = this.getRequest(id)
+    const rawData = Buffer.from(_rawData)
+    request.responseInfo.encodedDataLength = rawData.length
+    if (request) {
+      this.tryDecompression(rawData, (decodedData) => {
+        request.responseData = decodedData
+        request.responseInfo.dataLength = decodedData.length
+        request.responseStatusCode = statusCode
+        request.responseHeaders = new RequestHeaderPipe(headers).getData()
+        this.updateRequest(request)
+        this.endRequest(request)
+      })
+    }
+  }
+
+  public getRequest(id: string) {
+    return this.requests[id]
+  }
+
+  public registerRequest(request: RequestDetail) {
+    this.requests[request.id] = request
+    this.devtool.requestWillBeSent(request)
+  }
+
+  public updateRequest(request: RequestDetail) {
+    this.requests[request.id] = request
+  }
+
+  public endRequest(request: RequestDetail) {
+    request.requestEndTime = request.requestEndTime || Date.now()
+    this.devtool.responseReceived(request)
+  }
+
+  public close() {
+    this.server.close()
+    this.devtool.close()
   }
 
   private initServer() {
@@ -68,46 +130,6 @@ export class RequestCenter {
     })
 
     return server
-  }
-
-  public responseData(data: {
-    id: string
-    rawData: Array<number>
-    statusCode: number
-    headers: Record<string, string>
-  }) {
-    const { id, rawData: _rawData, statusCode, headers } = data
-    const request = this.getRequest(id)
-    const rawData = Buffer.from(_rawData)
-    request.responseInfo.encodedDataLength = rawData.length
-    if (request) {
-      this.tryDecompression(rawData, (decodedData) => {
-        request.responseData = decodedData
-        request.responseInfo.dataLength = decodedData.length
-        request.responseStatusCode = statusCode
-        request.responseHeaders = new RequestHeaderPipe(headers).getData()
-        this.updateRequest(request)
-        this.endRequest(request)
-      })
-    }
-  }
-
-  private getRequest(id: string) {
-    return this.requests[id]
-  }
-
-  public registerRequest(request: RequestDetail) {
-    this.requests[request.id] = request
-    this.devtool.requestWillBeSent(request)
-  }
-
-  public updateRequest(request: RequestDetail) {
-    this.requests[request.id] = request
-  }
-
-  public endRequest(request: RequestDetail) {
-    request.requestEndTime = request.requestEndTime || Date.now()
-    this.devtool.responseReceived(request)
   }
 
   private tryDecompression(data: Buffer, callback: (result: Buffer) => void) {
@@ -136,10 +158,5 @@ export class RequestCenter {
     }
 
     tryNext()
-  }
-
-  public close() {
-    this.server.close()
-    this.devtool.close()
   }
 }

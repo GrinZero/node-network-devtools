@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
-import { DevtoolServer } from '../fork/devtool'
+import { DevtoolServer } from './devtool'
 import { fileURLToPath } from 'url'
+import { __dirname } from '../core/fork'
 
 export function getScriptLanguageByFileName(fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase()
@@ -35,7 +36,7 @@ export function getScriptLanguageByFileName(fileName: string) {
   }
 }
 
-export class ResourceCenter {
+export class ResourceService {
   private pathToScriptId: Map<string, string>
   private scriptIdToPath: Map<string, string>
   private devtool: DevtoolServer
@@ -56,6 +57,7 @@ export class ResourceCenter {
   public getScriptIdByPath(filePath: string) {
     return this.pathToScriptId.get(filePath)
   }
+  // FIXME: .commitlintrc.js等文件无法读取？
   private handleGetScriptSource(id: string, scriptId: string) {
     const filePath = this.getPathByScriptId(scriptId)
     if (!filePath) {
@@ -111,8 +113,10 @@ export class ResourceCenter {
     return scriptList
   }
   private initScriptMap() {
-    // FIXME: 既需要项目路径，又需要当前tools路径，非正确用法
-    const scriptList = this.getScriptListByTraverseDir(path.resolve('../..'))
+    const scriptList = [
+      ...this.getScriptListByTraverseDir(process.cwd()),
+      ...this.getScriptListByTraverseDir(__dirname)
+    ]
     let scriptId = 0
     scriptList.forEach((script) => {
       scriptId += 1
@@ -123,6 +127,7 @@ export class ResourceCenter {
       })
     })
   }
+  // TODO: 监听devtool,改为暴露getScriptResource,交由handler处理
   private initDevtoolListeners() {
     this.devtool.on((error, message) => {
       if (error) {

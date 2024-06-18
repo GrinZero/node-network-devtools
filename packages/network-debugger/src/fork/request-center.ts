@@ -4,6 +4,7 @@ import zlib from 'zlib'
 import { Server } from 'ws'
 import { RequestHeaderPipe } from './pipe'
 import { log } from '../utils'
+import { ResourceService } from './resource-service'
 
 export interface RequestCenterInitOptions {
   port?: number
@@ -20,6 +21,7 @@ export type DevtoolMessageListener = <T = any>(props: {
 export class RequestCenter {
   public requests: Record<string, RequestDetail>
   private devtool: DevtoolServer
+  private resourceService: ResourceService
   private server: Server
   private listeners: Record<string, DevtoolMessageListener[] | undefined> = {}
   constructor({ port, requests }: { port: number; requests?: Record<string, RequestDetail> }) {
@@ -27,6 +29,7 @@ export class RequestCenter {
     this.devtool = new DevtoolServer({
       port
     })
+    this.resourceService = new ResourceService(this.devtool)
     this.devtool.on((error, message) => {
       if (error) {
         log(error)
@@ -53,6 +56,7 @@ export class RequestCenter {
       })
     })
     this.server = this.initServer()
+    this.resourceService.init()
   }
 
   public on(method: string, listener: DevtoolMessageListener) {

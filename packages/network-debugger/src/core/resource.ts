@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { DevtoolServer } from '../fork/devtool'
+import { fileURLToPath } from 'url'
 
 export function getScriptLanguageByFileName(fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase()
@@ -54,6 +55,25 @@ export class ResourceCenter {
   }
   public getScriptIdByPath(filePath: string) {
     return this.pathToScriptId.get(filePath)
+  }
+  private handleGetScriptSource(id: string, scriptId: string) {
+    const filePath = this.getPathByScriptId(scriptId)
+    if (!filePath) {
+      return
+    }
+    const fileSystemPath = fileURLToPath(filePath)
+    fs.readFile(fileSystemPath, 'utf-8', (err, data) => {
+      if (err) {
+        return
+      }
+      this.devtool.send({
+        id: id,
+        method: 'Debugger.getScriptSourceResponse',
+        result: {
+          scriptSource: data
+        }
+      })
+    })
   }
   // 传入路径，建立映射
   private getScriptListByTraverseDir(
@@ -109,16 +129,11 @@ export class ResourceCenter {
         return
       }
       if (message.method === 'Debugger.getScriptSource') {
-        console.log(message)
+        const id = message.id
+        // scriptParsed时的scriptId是字符串，但是此处拿到的却是数值，需要转换为字符串
+        const scriptId = '' + message.params.scriptId
         // 获取脚本内容
-        this.devtool.send({
-          id: message.id,
-          method: 'Debugger.getScriptSource',
-          result: {
-            // TODO:读取实际脚本内容
-            scriptSource: 'var passort=passort'
-          }
-        })
+        this.handleGetScriptSource(id, scriptId)
       }
     })
   }

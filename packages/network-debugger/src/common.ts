@@ -5,7 +5,7 @@ export interface CDPCallFrame {
   functionName: string
   lineNumber: number
   url: string
-  scriptId: string
+  scriptId: number
 }
 
 export class RequestDetail {
@@ -16,17 +16,14 @@ export class RequestDetail {
 
     const frames = initiatorStackPipe(getStackFrames())
 
-    let scriptId = 0
-    // TODO: 进程通信拿到scriptId映射
     const callFrames = frames.map((frame) => {
-      scriptId += 1
       const fileName = frame.fileName || ''
       return {
         columnNumber: frame.columnNumber || 0,
         functionName: frame.functionName || '',
         lineNumber: frame.lineNumber || 0,
         url: fileName.startsWith('/') ? `file://${fileName}` : fileName,
-        scriptId
+        scriptId: 0
       }
     })
 

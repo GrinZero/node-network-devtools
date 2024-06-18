@@ -105,7 +105,7 @@ export class ResourceService {
             scriptLanguage: getScriptLanguageByFileName(url.href),
             embedderName: url.href,
             scriptId: ++scriptId,
-            // TODO: SourceMap 实际应该是打包后的代码才需要？ 但是这里显示的是实际的代码
+            // TODO: SourceMap?
             sourceMapURL: '',
             hasSourceURL: false
           })

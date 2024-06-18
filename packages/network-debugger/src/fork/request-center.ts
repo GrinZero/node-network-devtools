@@ -93,6 +93,21 @@ export class RequestCenter {
   }
 
   public registerRequest(request: RequestDetail) {
+    // 替换callFrames的scriptId
+    // TODO: 待优化 特别是scriptId什么时候是数值，什么时候是字符串
+    if (request.initiator) {
+      request.initiator.stack.callFrames.forEach((frame) => {
+        if (frame.url.startsWith('node:')) {
+          return
+        }
+        let scriptId = this.resourceService.getScriptIdByPath(frame.url)
+        if (!scriptId && !frame.url.startsWith('file://')) {
+          const fileUrl = `file://${frame.url.replace(/\\/g, '/')}`
+          scriptId = this.resourceService.getScriptIdByPath(fileUrl)
+        }
+        frame.scriptId = scriptId ? Number(scriptId) : 0
+      })
+    }
     this.requests[request.id] = request
     this.devtool.requestWillBeSent(request)
   }

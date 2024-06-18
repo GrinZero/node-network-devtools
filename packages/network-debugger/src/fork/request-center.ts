@@ -4,6 +4,7 @@ import zlib from 'zlib'
 import { Server } from 'ws'
 import { RequestHeaderPipe } from './pipe'
 import { log } from '../utils'
+import { EffectCleaner, PluginInstance } from './module/common'
 
 export interface RequestCenterInitOptions {
   port?: number
@@ -12,7 +13,6 @@ export interface RequestCenterInitOptions {
 
 export type DevtoolMessageListener = <T = any>(props: {
   data: T
-  devtool: DevtoolServer
   request: RequestDetail
   id: string
 }) => void
@@ -21,6 +21,7 @@ export class RequestCenter {
   public requests: Record<string, RequestDetail>
   private devtool: DevtoolServer
   private server: Server
+  private effects: Array<EffectCleaner> = []
   private listeners: Record<string, DevtoolMessageListener[] | undefined> = {}
   constructor({ port, requests }: { port: number; requests?: Record<string, RequestDetail> }) {
     this.requests = requests || {}
@@ -46,13 +47,24 @@ export class RequestCenter {
       listenerList.forEach((listener) => {
         listener({
           data: message.params,
-          devtool: this.devtool,
           request,
           id: message.id
         })
       })
     })
     this.server = this.initServer()
+  }
+
+  public loadPlugins(plugins: PluginInstance[]) {
+    const effects = plugins
+      .map((plugin) =>
+        plugin({
+          devtool: this.devtool,
+          core: this
+        })
+      )
+      .filter(Boolean) as Array<EffectCleaner>
+    this.effects.push(...effects)
   }
 
   public on(method: string, listener: DevtoolMessageListener) {
@@ -105,6 +117,7 @@ export class RequestCenter {
   public close() {
     this.server.close()
     this.devtool.close()
+    this.effects.forEach((effect) => effect())
   }
 
   private initServer() {

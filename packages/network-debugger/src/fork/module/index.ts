@@ -1,14 +1,7 @@
 import { RequestCenter } from '../request-center'
-import { getHandlerStore } from './common'
+import { debuggerPlugin } from './debugger'
+import { networkPlugin } from './network'
 
-import './network'
-import './debugger'
-
-export const addListener = (instance: RequestCenter) => {
-  const store = getHandlerStore()
-  for (const [type, handlers] of store) {
-    handlers?.forEach((handler) => {
-      instance.on(type, handler)
-    })
-  }
+export const loadPlugin = (instance: RequestCenter) => {
+  instance.loadPlugins([networkPlugin, debuggerPlugin])
 }

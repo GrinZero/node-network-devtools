@@ -32,7 +32,9 @@ node network devtools正是为了解决这个问题，它一个允许您使用ch
   - [x] binary response body
   - [x] stack follow
     - [x] show stack
-    - [ ] click to jump
+    - [x] click to jump
+      - [x] base
+      - [ ] Sourcemap
 - [ ] WebSocket
   - [ ] messages
   - [ ] payload
@@ -40,10 +42,11 @@ node network devtools正是为了解决这个问题，它一个允许您使用ch
 - [ ] Compatibility
   - [x] commonjs
   - [x] esmodule
+  - [ ] Bun
 
 ## 👀 预览
 
-![图](https://github.com/GrinZero/extreme/assets/70185413/24de6b48-8f5e-4cf4-aff0-23f4735a4b57)
+![img](https://github.com/GrinZero/node-network-devtools/assets/70185413/5338d8f2-bb54-46fd-b243-a7a5b4af3031)
 
 ## 📦 快速开始
 

@@ -17,17 +17,9 @@ export const useStore = () => {
   devtool.send({})
 }
 
-export const useScriptParsed = (script: ISciprtParsed) => {
-  const { devtool } = useContext()
-  devtool.send({
-    method: 'Debugger.scriptParsed',
-    params: script
-  })
-}
-
 export const debuggerPlugin = createPlugin(({ devtool, core }) => {
-  useHandler('Debugger.getScriptSource', ({ id, data }) => {
-    const scriptId = (data as ScriptSourceData).scriptId
+  useHandler<ScriptSourceData>('Debugger.getScriptSource', ({ id, data }) => {
+    const { scriptId } = data
     const scriptSource = core.resourceService.getScriptSource(scriptId)
     devtool.send({
       id: id,

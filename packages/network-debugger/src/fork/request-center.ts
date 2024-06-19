@@ -104,7 +104,7 @@ export class RequestCenter {
   }
 
   public registerRequest(request: RequestDetail) {
-    // 替换callFrames的scriptId
+    // replace callFrames' scriptId
     if (request.initiator) {
       request.initiator.stack.callFrames.forEach((frame) => {
         const fileUrl = pathToFileURL(frame.url)

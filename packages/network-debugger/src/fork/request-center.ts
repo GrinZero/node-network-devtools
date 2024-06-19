@@ -11,11 +11,14 @@ export interface RequestCenterInitOptions {
   requests?: Record<string, RequestDetail>
 }
 
-export type DevtoolMessageListener = <T = any>(props: {
-  data: T
-  request?: RequestDetail
-  id: string
-}) => void
+/**
+ * @param data message data
+ * @param id message id
+ * @param request? request detail
+ */
+export interface DevtoolMessageListener<T = any> {
+  (props: { data: T; request?: RequestDetail; id: string }): void
+}
 
 export class RequestCenter {
   public requests: Record<string, RequestDetail>

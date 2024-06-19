@@ -6,6 +6,7 @@ import { RequestHeaderPipe } from './pipe'
 import { log } from '../utils'
 import { ResourceService } from './resource-service'
 import { EffectCleaner, PluginInstance } from './module/common'
+import { pathToFileURL } from 'url'
 
 export interface RequestCenterInitOptions {
   port?: number
@@ -101,18 +102,13 @@ export class RequestCenter {
 
   public registerRequest(request: RequestDetail) {
     // 替换callFrames的scriptId
-    // TODO: 优化相关路径处理 PathToFileUrl?
     if (request.initiator) {
       request.initiator.stack.callFrames.forEach((frame) => {
-        if (frame.url.startsWith('node:')) {
-          return
+        const fileUrl = pathToFileURL(frame.url)
+        const scriptId = this.resourceService.getScriptIdByUrl(fileUrl.href)
+        if (scriptId) {
+          frame.scriptId = scriptId
         }
-        let scriptId = this.resourceService.getScriptIdByPath(frame.url) ?? ''
-        if (!scriptId && !frame.url.startsWith('file://')) {
-          const fileUrl = `file://${frame.url.replace(/\\/g, '/')}`
-          scriptId = this.resourceService.getScriptIdByPath(fileUrl) ?? ''
-        }
-        frame.scriptId = scriptId
       })
     }
     this.requests[request.id] = request

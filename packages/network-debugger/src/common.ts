@@ -5,7 +5,7 @@ export interface CDPCallFrame {
   functionName: string
   lineNumber: number
   url: string
-  scriptId: string
+  scriptId?: string
 }
 
 export class RequestDetail {
@@ -22,8 +22,7 @@ export class RequestDetail {
         columnNumber: frame.columnNumber || 0,
         functionName: frame.functionName || '',
         lineNumber: frame.lineNumber || 0,
-        url: fileName.startsWith('/') ? `file://${fileName}` : fileName,
-        scriptId: ''
+        url: fileName.startsWith('/') ? `file://${fileName}` : fileName
       }
     })
 

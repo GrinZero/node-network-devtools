@@ -1,9 +1,9 @@
 import fs from 'fs'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import { __dirname } from '../core/fork'
 
-function getScriptLanguageByFileName(fileName: string) {
+function getScriptLangByFileName(fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase()
   switch (extension) {
     case 'js':
@@ -36,25 +36,25 @@ function getScriptLanguageByFileName(fileName: string) {
 }
 
 export class ScriptMap {
-  private pathToScriptId: Map<string, string>
-  private scriptIdToPath: Map<string, string>
+  private urlToScriptId: Map<string, string>
+  private scriptIdToUrl: Map<string, string>
 
   constructor() {
-    this.pathToScriptId = new Map<string, string>()
-    this.scriptIdToPath = new Map<string, string>()
+    this.urlToScriptId = new Map<string, string>()
+    this.scriptIdToUrl = new Map<string, string>()
   }
 
   public addMapping(filePath: string, scriptId: string) {
-    this.pathToScriptId.set(filePath, scriptId)
-    this.scriptIdToPath.set(scriptId, filePath)
+    this.urlToScriptId.set(filePath, scriptId)
+    this.scriptIdToUrl.set(scriptId, filePath)
   }
 
-  public getPathByScriptId(scriptId: string) {
-    return this.scriptIdToPath.get(scriptId)
+  public getUrlByScriptId(scriptId: string) {
+    return this.scriptIdToUrl.get(scriptId)
   }
 
-  public getScriptIdByPath(filePath: string) {
-    return this.pathToScriptId.get(filePath)
+  public getScriptIdByUrl(filePath: string) {
+    return this.urlToScriptId.get(filePath)
   }
 }
 
@@ -67,16 +67,16 @@ export class ResourceService {
     this.scriptIdCounter = 0
   }
 
-  public getScriptIdByPath(filePath: string) {
-    return this.scriptMap.getScriptIdByPath(filePath)
+  public getScriptIdByUrl(filePath: string) {
+    return this.scriptMap.getScriptIdByUrl(filePath)
   }
 
-  public getPathByScriptId(scriptId: string) {
-    return this.scriptMap.getPathByScriptId(scriptId)
+  public getUrlByScriptId(scriptId: string) {
+    return this.scriptMap.getUrlByScriptId(scriptId)
   }
 
   public getScriptSource(scriptId: string) {
-    const filePath = this.scriptMap.getPathByScriptId(scriptId)
+    const filePath = this.scriptMap.getUrlByScriptId(scriptId)
     if (!filePath) {
       console.error(`No file path found for script ID: ${scriptId}`)
       return null
@@ -112,12 +112,11 @@ export class ResourceService {
           stack.push(fullPath)
         } else {
           const resolvedPath = path.resolve(fullPath)
-          const fileUrl = new URL(`file://${resolvedPath.replace(/\\/g, '/')}`)
+          const fileUrl = pathToFileURL(resolvedPath)
           const scriptIdStr = `${++scriptId}`
-
           scriptList.push({
             url: fileUrl.href,
-            scriptLanguage: getScriptLanguageByFileName(fileUrl.href),
+            scriptLanguage: getScriptLangByFileName(fileUrl.href),
             embedderName: fileUrl.href,
             scriptId: scriptIdStr,
             // TODO: SourceMap?

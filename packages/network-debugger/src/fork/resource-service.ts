@@ -121,14 +121,15 @@ export class ResourceService {
             scriptId: scriptIdStr,
             // TODO: SourceMap?
             sourceMapURL: '',
-            hasSourceURL: false,
-            startColumn: 0,
-            startLine: 0,
-            endColumn: 231,
-            endLine: 145,
-            isModule: false,
-            length: 63559,
-            isLiveEdit: false
+            hasSourceURL: false
+            // TODO: is useful?
+            // startColumn: 0,
+            // startLine: 0,
+            // endColumn: 231,
+            // endLine: 145,
+            // isModule: false,
+            // length: 63559,
+            // isLiveEdit: false
           })
           this.scriptMap.addMapping(fileUrl.href, scriptIdStr)
         }

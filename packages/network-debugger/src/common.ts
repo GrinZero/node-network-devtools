@@ -1,4 +1,6 @@
+import { fileURLToPath } from 'url'
 import { getStackFrames, initiatorStackPipe } from './utils/stack'
+import { dirname } from 'path'
 
 export interface CDPCallFrame {
   columnNumber: number
@@ -67,3 +69,6 @@ export const SERVER_PORT = Number(process.env.NETWORK_SERVER_PORT || 5271)
 export const REMOTE_DEBUGGER_PORT = Number(process.env.REMOTE_DEBUGGER_PORT || 9333)
 export const IS_DEV_MODE = process.env.NETWORK_DEBUG_MODE === 'true'
 export const READY_MESSAGE = 'ready'
+
+export const __filename = fileURLToPath(import.meta.url)
+export const __dirname = dirname(__filename)

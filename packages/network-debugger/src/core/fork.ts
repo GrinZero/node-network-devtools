@@ -3,12 +3,8 @@ import { type IncomingMessage } from 'http'
 import WebSocket from 'ws'
 import { fork } from 'child_process'
 import fs from 'fs'
-import { LOCK_FILE } from '../common'
-import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
-
-export const __filename = fileURLToPath(import.meta.url)
-export const __dirname = dirname(__filename)
+import { LOCK_FILE, __dirname } from '../common'
+import { resolve } from 'path'
 
 export class MainProcess {
   private ws: Promise<WebSocket>
@@ -125,3 +121,4 @@ export class MainProcess {
     })
   }
 }
+export { __dirname }

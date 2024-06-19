@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
-import { __dirname } from '../core/fork'
+import { __dirname } from '../common'
 
 function getScriptLangByFileName(fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase()
@@ -121,7 +121,14 @@ export class ResourceService {
             scriptId: scriptIdStr,
             // TODO: SourceMap?
             sourceMapURL: '',
-            hasSourceURL: false
+            hasSourceURL: false,
+            startColumn: 0,
+            startLine: 0,
+            endColumn: 231,
+            endLine: 145,
+            isModule: false,
+            length: 63559,
+            isLiveEdit: false
           })
           this.scriptMap.addMapping(fileUrl.href, scriptIdStr)
         }

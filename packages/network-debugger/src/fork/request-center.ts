@@ -105,7 +105,9 @@ export class RequestCenter {
     if (request.initiator) {
       request.initiator.stack.callFrames.forEach((frame) => {
         const fileUrl = pathToFileURL(frame.url)
-        const scriptId = this.resourceService.getScriptIdByUrl(fileUrl.href)
+        const scriptId =
+          this.resourceService.getScriptIdByUrl(fileUrl.href) ??
+          this.resourceService.getScriptIdByUrl(frame.url)
         if (scriptId) {
           frame.scriptId = scriptId
         }

@@ -53,8 +53,8 @@ export class ScriptMap {
     return this.scriptIdToUrl.get(scriptId)
   }
 
-  public getScriptIdByUrl(filePath: string) {
-    return this.urlToScriptId.get(filePath)
+  public getScriptIdByUrl(url: string) {
+    return this.urlToScriptId.get(url)
   }
 }
 
@@ -67,8 +67,8 @@ export class ResourceService {
     this.scriptIdCounter = 0
   }
 
-  public getScriptIdByUrl(filePath: string) {
-    return this.scriptMap.getScriptIdByUrl(filePath)
+  public getScriptIdByUrl(url: string) {
+    return this.scriptMap.getScriptIdByUrl(url)
   }
 
   public getUrlByScriptId(scriptId: string) {
@@ -76,15 +76,15 @@ export class ResourceService {
   }
 
   public getScriptSource(scriptId: string) {
-    const filePath = this.scriptMap.getUrlByScriptId(scriptId)
-    if (!filePath) {
+    const fileUrl = this.scriptMap.getUrlByScriptId(scriptId)
+    if (!fileUrl) {
       console.error(`No file path found for script ID: ${scriptId}`)
       return null
     }
 
-    const fileSystemPath = fileURLToPath(filePath)
+    const filePath = fileURLToPath(fileUrl)
     try {
-      return fs.readFileSync(fileSystemPath, 'utf-8')
+      return fs.readFileSync(filePath, 'utf-8')
     } catch (err) {
       console.error('Error reading file:', err)
       return null

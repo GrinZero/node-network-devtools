@@ -4,7 +4,9 @@ import zlib from 'zlib'
 import { Server } from 'ws'
 import { RequestHeaderPipe } from './pipe'
 import { log } from '../utils'
+import { ResourceService } from './resource-service'
 import { EffectCleaner, PluginInstance } from './module/common'
+import { pathToFileURL } from 'url'
 
 export interface RequestCenterInitOptions {
   port?: number
@@ -22,6 +24,7 @@ export interface DevtoolMessageListener<T = any> {
 
 export class RequestCenter {
   public requests: Record<string, RequestDetail>
+  public resourceService: ResourceService
   private devtool: DevtoolServer
   private server: Server
   private effects: Array<EffectCleaner> = []
@@ -31,6 +34,7 @@ export class RequestCenter {
     this.devtool = new DevtoolServer({
       port
     })
+    this.resourceService = new ResourceService()
     this.devtool.on((error, message) => {
       if (error) {
         log(error)
@@ -100,6 +104,18 @@ export class RequestCenter {
   }
 
   public registerRequest(request: RequestDetail) {
+    // replace callFrames' scriptId
+    if (request.initiator) {
+      request.initiator.stack.callFrames.forEach((frame) => {
+        const fileUrl = pathToFileURL(frame.url)
+        const scriptId =
+          this.resourceService.getScriptIdByUrl(fileUrl.href) ??
+          this.resourceService.getScriptIdByUrl(frame.url)
+        if (scriptId) {
+          frame.scriptId = scriptId
+        }
+      })
+    }
     this.requests[request.id] = request
     this.devtool.requestWillBeSent(request)
   }

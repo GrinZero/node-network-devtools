@@ -27,7 +27,7 @@ features:
   - title: 🛠️ No Proxy
     details: Free proxy competition and trouble.
 
-footer: AGPL-3.0 Licensed | Copyright © 2024 Node Network Devtools Community
+footer: MIT Licensed | Copyright © 2024 Node Network Devtools Community
 ---
 
 At present, it is in the early stage, although the basic functions are already available, there are still many interesting areas to explore and explore.

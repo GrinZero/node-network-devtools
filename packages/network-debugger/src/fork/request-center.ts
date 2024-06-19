@@ -13,7 +13,7 @@ export interface RequestCenterInitOptions {
 
 export type DevtoolMessageListener = <T = any>(props: {
   data: T
-  request: RequestDetail
+  request?: RequestDetail
   id: string
 }) => void
 
@@ -40,10 +40,6 @@ export class RequestCenter {
       }
 
       const request = this.getRequest(message.params.requestId)
-      if (!request) {
-        console.log('request not found', message.params.requestId)
-        return
-      }
       listenerList.forEach((listener) => {
         listener({
           data: message.params,

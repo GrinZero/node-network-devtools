@@ -20,8 +20,8 @@ export type DevtoolMessageListener = <T = any>(props: {
 
 export class RequestCenter {
   public requests: Record<string, RequestDetail>
+  public resourceService: ResourceService
   private devtool: DevtoolServer
-  private resourceService: ResourceService
   private server: Server
   private effects: Array<EffectCleaner> = []
   private listeners: Record<string, DevtoolMessageListener[] | undefined> = {}
@@ -52,7 +52,6 @@ export class RequestCenter {
       })
     })
     this.server = this.initServer()
-    this.resourceService.init()
   }
 
   public loadPlugins(plugins: PluginInstance[]) {
@@ -102,18 +101,17 @@ export class RequestCenter {
 
   public registerRequest(request: RequestDetail) {
     // 替换callFrames的scriptId
-    // TODO: 待优化 特别是scriptId什么时候是数值，什么时候是字符串
     if (request.initiator) {
       request.initiator.stack.callFrames.forEach((frame) => {
         if (frame.url.startsWith('node:')) {
           return
         }
-        let scriptId = this.resourceService.getScriptIdByPath(frame.url)
+        let scriptId = this.resourceService.getScriptIdByPath(frame.url) ?? ''
         if (!scriptId && !frame.url.startsWith('file://')) {
           const fileUrl = `file://${frame.url.replace(/\\/g, '/')}`
-          scriptId = this.resourceService.getScriptIdByPath(fileUrl)
+          scriptId = this.resourceService.getScriptIdByPath(fileUrl) ?? ''
         }
-        frame.scriptId = scriptId ? Number(scriptId) : 0
+        frame.scriptId = scriptId
       })
     }
     this.requests[request.id] = request

@@ -23,6 +23,31 @@ export type EffectCleaner = () => void
 export type PluginHandler = (props: CoreCotext) => EffectCleaner | void
 export type PluginInstance = (props: CoreCotext) => EffectCleaner | void
 
+/**
+ * @description create a plugin for devtool
+ * @param fn
+ *  the plugin handler, you can use hook in it.
+ *  if you want to do some clean work, you can return a function
+ * @example
+ * ```ts
+ * createPlugin(({ devtool, core }) => {
+ *   const store = new Map()
+ *   useHandler('Network.requestWillBeSent', ({ id, request }) => {
+ *     store.set(id, request)
+ *   })
+ *   useHandler('Network.loadingFinished', ({ id }) => {
+ *     store.delete(id)
+ *   })
+ *  setInterval(() => {
+ *    console.log(store.size)
+ *  }, 1000)
+ *   return () => {
+ *     store.clear()
+ *   }
+ * })
+ * ```
+ * @returns PluginInstance
+ */
 export const createPlugin = (fn: PluginHandler): PluginInstance => {
   return (props: CoreCotext) => {
     initPluginContext(props.core, props.devtool)
@@ -32,7 +57,12 @@ export const createPlugin = (fn: PluginHandler): PluginInstance => {
   }
 }
 
-export const useHandler = (type: string, fn: DevtoolMessageListener) => {
+/**
+ * @param type the method name of CDP message
+ * @mark all hook can only be used in createPlugin
+ * @returns
+ */
+export const useHandler = <T>(type: string, fn: DevtoolMessageListener<T>) => {
   if (!currentPluginContext) {
     return
   }
@@ -41,6 +71,9 @@ export const useHandler = (type: string, fn: DevtoolMessageListener) => {
   core.on(type, fn)
 }
 
+/**
+ * @mark all hook can only be used in createPlugin
+ */
 export const useContext = () => {
   return currentPluginContext!
 }

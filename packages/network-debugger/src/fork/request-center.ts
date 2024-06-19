@@ -30,7 +30,7 @@ export class RequestCenter {
     this.devtool = new DevtoolServer({
       port
     })
-    this.resourceService = new ResourceService(this.devtool)
+    this.resourceService = new ResourceService()
     this.devtool.on((error, message) => {
       if (error) {
         log(error)
@@ -101,6 +101,7 @@ export class RequestCenter {
 
   public registerRequest(request: RequestDetail) {
     // 替换callFrames的scriptId
+    // TODO: 优化相关路径处理 PathToFileUrl?
     if (request.initiator) {
       request.initiator.stack.callFrames.forEach((frame) => {
         if (frame.url.startsWith('node:')) {

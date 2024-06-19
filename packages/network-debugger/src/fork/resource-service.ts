@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { DevtoolServer } from './devtool'
 import { fileURLToPath } from 'url'
 import { __dirname } from '../core/fork'
 
@@ -39,12 +38,10 @@ export function getScriptLanguageByFileName(fileName: string) {
 export class ResourceService {
   private pathToScriptId: Map<string, string>
   private scriptIdToPath: Map<string, string>
-  private devtool: DevtoolServer
 
-  constructor(devtool: DevtoolServer) {
+  constructor() {
     this.pathToScriptId = new Map<string, string>()
     this.scriptIdToPath = new Map<string, string>()
-    this.devtool = devtool
   }
   // 双向映射
   public addMapping(filePath: string, scriptId: string) {

@@ -3,7 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { __dirname } from '../core/fork'
 
-export function getScriptLanguageByFileName(fileName: string) {
+function getScriptLanguageByFileName(fileName: string) {
   const extension = fileName.split('.').pop()?.toLowerCase()
   switch (extension) {
     case 'js':
@@ -35,7 +35,7 @@ export function getScriptLanguageByFileName(fileName: string) {
   }
 }
 
-export class ResourceService {
+export class ScriptMap {
   private pathToScriptId: Map<string, string>
   private scriptIdToPath: Map<string, string>
 
@@ -43,62 +43,88 @@ export class ResourceService {
     this.pathToScriptId = new Map<string, string>()
     this.scriptIdToPath = new Map<string, string>()
   }
-  // 双向映射
+
   public addMapping(filePath: string, scriptId: string) {
     this.pathToScriptId.set(filePath, scriptId)
     this.scriptIdToPath.set(scriptId, filePath)
   }
+
   public getPathByScriptId(scriptId: string) {
     return this.scriptIdToPath.get(scriptId)
   }
+
   public getScriptIdByPath(filePath: string) {
     return this.pathToScriptId.get(filePath)
   }
-  public handleGetScriptSource(scriptId: string) {
-    const filePath = this.getPathByScriptId(scriptId)
+}
+
+export class ResourceService {
+  private scriptMap: ScriptMap
+  private scriptIdCounter: number
+
+  constructor() {
+    this.scriptMap = new ScriptMap()
+    this.scriptIdCounter = 0
+  }
+
+  public getScriptIdByPath(filePath: string) {
+    return this.scriptMap.getScriptIdByPath(filePath)
+  }
+
+  public getPathByScriptId(scriptId: string) {
+    return this.scriptMap.getPathByScriptId(scriptId)
+  }
+
+  public getScriptSource(scriptId: string) {
+    const filePath = this.scriptMap.getPathByScriptId(scriptId)
     if (!filePath) {
-      return
+      console.error(`No file path found for script ID: ${scriptId}`)
+      return null
     }
+
     const fileSystemPath = fileURLToPath(filePath)
     try {
-      const data = fs.readFileSync(fileSystemPath, 'utf-8')
-      return data
+      return fs.readFileSync(fileSystemPath, 'utf-8')
     } catch (err) {
       console.error('Error reading file:', err)
+      return null
     }
   }
-  private scriptIdCounter = 0
-  // 传入路径，建立映射
-  private getScriptListByTraverseDir(
-    directoryPath: string,
-    ignoreDict: string[] = ['node_modules']
-  ) {
+
+  private traverseDirToMap(directoryPath: string, ignoreList: string[] = ['node_modules']) {
     const scriptList = []
     const stack = [directoryPath]
     let scriptId = this.scriptIdCounter
+
     while (stack.length > 0) {
       const currentPath = stack.pop()!
       const items = fs.readdirSync(currentPath)
+
       for (const item of items) {
-        if (ignoreDict.includes(item)) {
+        if (ignoreList.includes(item)) {
           continue
         }
+
         const fullPath = path.join(currentPath, item)
         const stats = fs.statSync(fullPath)
+
         if (stats.isDirectory()) {
           stack.push(fullPath)
         } else {
           const resolvedPath = path.resolve(fullPath)
-          const url = new URL(`file://${resolvedPath.replace(/\\/g, '/')}`)
+          const fileUrl = new URL(`file://${resolvedPath.replace(/\\/g, '/')}`)
+          const scriptIdStr = `${++scriptId}`
+
           scriptList.push({
-            url: url.href,
-            scriptLanguage: getScriptLanguageByFileName(url.href),
-            embedderName: url.href,
-            scriptId: '' + ++scriptId,
+            url: fileUrl.href,
+            scriptLanguage: getScriptLanguageByFileName(fileUrl.href),
+            embedderName: fileUrl.href,
+            scriptId: scriptIdStr,
             // TODO: SourceMap?
             sourceMapURL: '',
             hasSourceURL: false
           })
+          this.scriptMap.addMapping(fileUrl.href, scriptIdStr)
         }
       }
     }
@@ -107,13 +133,9 @@ export class ResourceService {
   }
 
   public getLocalScriptList() {
-    const scriptList = [
-      ...this.getScriptListByTraverseDir(process.cwd()),
-      ...this.getScriptListByTraverseDir(__dirname)
-    ]
-    scriptList.forEach((script) => {
-      this.addMapping(script.url, '' + script.scriptId)
-    })
-    return scriptList
+    const projectScripts = this.traverseDirToMap(process.cwd())
+    const coreScripts = this.traverseDirToMap(__dirname)
+
+    return [...projectScripts, ...coreScripts]
   }
 }

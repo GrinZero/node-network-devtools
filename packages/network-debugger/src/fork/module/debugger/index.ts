@@ -28,7 +28,7 @@ export const useScriptParsed = (script: ISciprtParsed) => {
 export const debuggerPlugin = createPlugin(({ devtool, core }) => {
   useHandler('Debugger.getScriptSource', ({ id, data }) => {
     const scriptId = (data as ScriptSourceData).scriptId
-    const scriptSource = core.resourceService.handleGetScriptSource(scriptId)
+    const scriptSource = core.resourceService.getScriptSource(scriptId)
     devtool.send({
       id: id,
       method: 'Debugger.getScriptSourceResponse',

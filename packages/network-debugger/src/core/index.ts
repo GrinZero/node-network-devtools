@@ -19,7 +19,7 @@ export interface RegisterOptions {
   serverPort?: number
 }
 
-export async function register(props: RegisterOptions) {
+export async function register(props?: RegisterOptions) {
   const { port = 5270, serverPort = 5271 } = props || {}
   const mainProcess = new MainProcess({
     port,

@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "nodemon --exec NODE_OPTIONS=--inspect-brk NODE_ENV=development ts-node --files ./src/index.ts",
-    "dev": "cross-env NETWORK_DEBUG_MODE=true node --inspect --watch ./src/index.js",
+    "dev": "cross-env NETWORK_DEBUG_MODE=true ts-node --inspect --watch ./src/index.js",
     "start": "cross-env NODE_ENV=production node --inspect  --watch ./src/index.js",
     "build": "vite build"
   },

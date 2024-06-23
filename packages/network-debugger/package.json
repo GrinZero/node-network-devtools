@@ -52,7 +52,6 @@
   "dependencies": {
     "iconv-lite": "^0.6.3",
     "open": "^8.4.2",
-    "stack-trace": "0.0.10",
     "ws": "^8.17.0",
     "zlib": "^1.0.5"
   }

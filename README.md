@@ -34,7 +34,9 @@ Node network devtools is designed to address this issue by allowing you to debug
   - [x] binary response body
   - [x] stack follow
     - [x] show stack
-    - [ ] click to jump
+    - [x] click to jump
+      - [x] base
+      - [ ] Sourcemap
 - [ ] WebSocket
   - [ ] messages
   - [ ] payload
@@ -42,10 +44,11 @@ Node network devtools is designed to address this issue by allowing you to debug
 - [ ] Compatibility
   - [x] commonjs
   - [x] esmodule
+  - [ ] Bun
 
 ## 👀 Preview
 
-![img](https://github.com/GrinZero/extreme/assets/70185413/24de6b48-8f5e-4cf4-aff0-23f4735a4b57)
+![img](https://github.com/GrinZero/node-network-devtools/assets/70185413/5338d8f2-bb54-46fd-b243-a7a5b4af3031)
 
 ## 📦 Quick Start
 

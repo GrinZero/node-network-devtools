@@ -1,9 +1,10 @@
 {
   "name": "node-network-devtools",
-  "version": "1.0.4",
+  "version": "1.0.6",
   "description": "",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
+  "types": "./dist/src/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/index.mjs",
@@ -22,13 +23,14 @@
     "dev": "vite build --watch"
   },
   "keywords": [
-    "network",
-    "node",
     "nodejs",
+    "javascript",
+    "chrome",
+    "node",
+    "network",
     "debug",
     "debugger",
     "devtools",
-    "chrome",
     "chrome devtools"
   ],
   "files": [
@@ -50,7 +52,6 @@
   "dependencies": {
     "iconv-lite": "^0.6.3",
     "open": "^8.4.2",
-    "stack-trace": "0.0.10",
     "ws": "^8.17.0",
     "zlib": "^1.0.5"
   }

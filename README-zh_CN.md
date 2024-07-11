@@ -61,14 +61,6 @@ pnpm add node-network-devtools -D
 yarn add node-network-devtools -D
 ```
 
-### 2. 配置
-
-把这行代码加到 `.gitignore` 文件中.
-
-```bash
-request-center.lock
-```
-
 ### 2. Usage
 
 只需将以下代码添加到项目的入口文件中即可。

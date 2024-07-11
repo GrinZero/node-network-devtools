@@ -63,14 +63,6 @@ pnpm add node-network-devtools -D
 yarn add node-network-devtools -D
 ```
 
-### 2. Config
-
-Add this code to your `.gitignore` file.
-
-```bash
-request-center.lock
-```
-
 ### 2. Usage
 
 Just add the following code to the entry file of your project.

@@ -1,6 +1,6 @@
 import { DevtoolServer } from './devtool'
 import { READY_MESSAGE, RequestDetail } from '../common'
-import zlib from 'zlib'
+import zlib from 'node:zlib'
 import { Server } from 'ws'
 import { RequestHeaderPipe } from './pipe'
 import { log } from '../utils'

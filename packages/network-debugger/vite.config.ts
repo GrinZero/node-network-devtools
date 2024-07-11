@@ -21,7 +21,8 @@ export default defineConfig(({ mode }) => ({
         'zlib',
         'fs',
         'path',
-        'url'
+        'url',
+        'node:zlib'
       ],
       output: {
         globals: {
@@ -31,7 +32,7 @@ export default defineConfig(({ mode }) => ({
           open: 'open',
           ws: 'ws',
           'iconv-lite': 'iconv',
-          zlib: 'zlib',
+          'node:zlib': 'zlib',
           fs: 'fs',
           path: 'path',
           url: 'url'

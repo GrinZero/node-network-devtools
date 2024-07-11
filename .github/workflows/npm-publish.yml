@@ -16,7 +16,8 @@ jobs:
       - run: npm i -g pnpm@8
       - run: pnpm i
       - run: pnpm build --filter=node-network-devtools
-      - run: cd packages/network-debugger
-      - run: npm publish --access public
+      - run: |
+          cd packages/network-debugger
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

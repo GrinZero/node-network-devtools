@@ -10,14 +10,18 @@ export interface CDPCallFrame {
   scriptId?: string
 }
 
+let uid = 0
 export class RequestDetail {
   id: string
   constructor() {
-    this.id = Math.random().toString(36).slice(2)
+    this.id = String(uid++)
     this.responseInfo = {}
 
-    const frames = initiatorStackPipe(getStackFrames())
+    this.loadCallFrames()
+  }
 
+  loadCallFrames(_stack?: string) {
+    const frames = initiatorStackPipe(getStackFrames(_stack))
     const callFrames = frames.map((frame) => {
       const fileName = frame.fileName || ''
       return {

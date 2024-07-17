@@ -3,6 +3,8 @@ import https from 'https'
 import { requestProxyFactory } from './request'
 import { MainProcess } from './fork'
 import { proxyFetch } from './fetch'
+// import * as dc from 'node:diagnostics_channel'
+// import { registerDc } from './dc'
 
 /**
  * @mark 暂时不支持
@@ -26,13 +28,11 @@ export async function register(props?: RegisterOptions) {
     serverPort
   })
 
-  const agents = [http, https]
-
   proxyFetch(mainProcess)
 
+  const agents = [http, https]
   agents.forEach((agent) => {
     const actualRequestHandlerFn = agent.request
-    // @ts-ignore
     agent.request = requestProxyFactory(actualRequestHandlerFn, agent === https, mainProcess)
   })
 }

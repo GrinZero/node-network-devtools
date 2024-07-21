@@ -16,8 +16,6 @@ export class RequestDetail {
   constructor() {
     this.id = String(uid++)
     this.responseInfo = {}
-
-    this.loadCallFrames()
   }
 
   loadCallFrames(_stack?: string) {

@@ -93,6 +93,7 @@ export function requestProxyFactory(
     mainProcess.registerRequest(requestDetail)
     const proxyCallback = proxyCallbackFactory(callback, requestDetail, mainProcess)
 
+    requestDetail.loadCallFrames()
     if (typeof arg1 === 'string' || arg1 instanceof URL) {
       // Call actualRequestHandler with 3 parameters
       const request: ClientRequest = actualRequestHandler(

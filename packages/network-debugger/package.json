@@ -1,7 +1,8 @@
 {
   "name": "node-network-devtools",
-  "version": "1.0.8",
-  "description": "",
+  "version": "1.0.9",
+  "description": "Inspecting Node.js's Network with Chrome DevTools",
+  "homepage":"https://grinzero.github.io/node-network-devtools/",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/src/index.d.ts",
@@ -23,22 +24,27 @@
     "dev": "vite build --watch"
   },
   "keywords": [
-    "nodejs",
-    "javascript",
-    "chrome",
     "node",
     "network",
-    "debug",
-    "debugger",
     "devtools",
-    "chrome devtools"
+    "debugging",
+    "http-inspector",
+    "inspector",
+    "chrome",
+    "debug",
+    "chrome devtools",
+    "request"
   ],
   "files": [
     "dist",
     "README.md"
   ],
-  "author": "",
-  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GrinZero/node-network-devtools.git"
+  },
+  "author": "bugyaluwang <bugyaluwang@qq.com> (https://github.com/GrinZero)",
+  "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/ws": "^8.5.10",

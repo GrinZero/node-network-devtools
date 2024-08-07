@@ -22,8 +22,10 @@ English | [简体中文](README-zh_CN.md)
 
 ## 📖 Introduction
 
-As you can see, the node program opened with the '-- inspect' option does not support network tags because it does not proxy user requests.
+As you can see, the node program opened with the `--inspect` option does not support network tags because it does not proxy user requests.
 Node network devtools is designed to address this issue by allowing you to debug requests made by nodejs using the network tab of Chrome devtools, making the debugging process equivalent to a web crawler experience in the browser.
+
+Node v22.6.0 experimentally supports network debugging. This library supports use before node v22.6.0, but the specific supported versions are unknown. 
 
 ## 🎮 TODO
 

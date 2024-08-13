@@ -1,10 +1,22 @@
 import { RequestCenter } from './request-center'
-import { LOCK_FILE, SERVER_PORT } from '../common'
+import { LOCK_FILE, PORT, RegisterOptions, SERVER_PORT } from '../common'
 import fs from 'fs'
 import { loadPlugin } from './module'
+import { jsonParse } from '../utils'
 
-let main = new RequestCenter({ port: SERVER_PORT })
-loadPlugin(main)
+const options = jsonParse<RegisterOptions>(process.env.NETWORK_OPTIONS || '{}', {})
+
+const loadCenter = () => {
+  const main = new RequestCenter({
+    serverPort: options.serverPort || SERVER_PORT,
+    port: options.port || PORT,
+    autoOpenDevtool: options.autoOpenDevtool
+  })
+  loadPlugin(main)
+  return main
+}
+
+let main = loadCenter()
 
 let restartCount = 0
 const restartLimit = 5
@@ -17,8 +29,7 @@ const restart = () => {
     return
   }
   main.close()
-  main = new RequestCenter({ port: SERVER_PORT, requests: main.requests })
-  loadPlugin(main)
+  main = loadCenter()
 }
 
 setInterval(() => {

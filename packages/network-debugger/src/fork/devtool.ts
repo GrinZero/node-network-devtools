@@ -8,6 +8,7 @@ import { log } from '../utils'
 
 export interface DevtoolServerInitOptions {
   port: number
+  autoOpenDevtool?: boolean
 }
 
 const frameId = '517.528'
@@ -27,14 +28,14 @@ export class DevtoolServer {
 
   private listeners: ((error: unknown | null, message?: any) => void)[] = []
   constructor(props: DevtoolServerInitOptions) {
-    const { port } = props
+    const { port, autoOpenDevtool = true } = props
     this.port = port
     this.server = new Server({ port })
     const { server } = this
 
     server.on('listening', () => {
       log(`devtool server is listening on port ${port}`)
-      this.open()
+      autoOpenDevtool && this.open()
     })
 
     this.socket = new Promise<[WebSocket]>((resolve) => {

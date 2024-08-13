@@ -74,3 +74,23 @@ export const READY_MESSAGE = 'ready'
 
 export const __filename = fileURLToPath(import.meta.url)
 export const __dirname = dirname(__filename)
+
+export interface RegisterOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
+  /**
+   * @description CDP Server Port, used for Devtool
+   * @link devtools://devtools/bundled/inspector.html?ws=localhost:${serverPort}
+   * @default 5271
+   */
+  serverPort?: number
+
+  /**
+   * @description Whether to automatically open Devtool
+   * @default true
+   */
+  autoOpenDevtool?: boolean
+}

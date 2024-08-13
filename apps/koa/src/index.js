@@ -11,7 +11,11 @@ const run = () => {
   const Koa = require('koa')
   const Router = require('koa-router')
 
-  register()
+  register({
+    port: 5222,
+    serverPort: 5333,
+    autoOpenDevtool: false
+  })
 
   const app = new Koa()
   const router = new Router()

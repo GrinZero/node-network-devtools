@@ -1,19 +1,22 @@
-import { IS_DEV_MODE, READY_MESSAGE, RequestDetail } from '../common'
+import { IS_DEV_MODE, PORT, READY_MESSAGE, RequestDetail } from '../common'
 import { type IncomingMessage } from 'http'
 import WebSocket from 'ws'
 import { fork } from 'child_process'
 import fs from 'fs'
 import { LOCK_FILE, __dirname } from '../common'
 import { resolve } from 'path'
+import { RegisterOptions } from '../common'
 
 export class MainProcess {
   private ws: Promise<WebSocket>
+  private options: RegisterOptions
 
-  constructor({ port = 5270 }: { port: number; serverPort: number }) {
+  constructor(props: RegisterOptions) {
+    this.options = props
     this.ws = new Promise<WebSocket>((resolve) => {
       const tryResolveSocker = () => {
         this.openProcess(() => {
-          const socket = new WebSocket(`ws://localhost:${port}`)
+          const socket = new WebSocket(`ws://localhost:${props.port}`)
           socket.on('open', () => {
             resolve(socket)
           })
@@ -37,7 +40,13 @@ export class MainProcess {
 
   private openProcess(callback?: () => void) {
     const forkProcess = () => {
-      const cp = fork(resolve(__dirname, './fork'))
+      // fork a new process with options
+      const cp = fork(resolve(__dirname, './fork'), {
+        env: {
+          ...process.env,
+          NETWORK_OPTIONS: JSON.stringify(this.options)
+        }
+      })
       const handleMsg = (e: any) => {
         if (e === READY_MESSAGE) {
           callback && callback()

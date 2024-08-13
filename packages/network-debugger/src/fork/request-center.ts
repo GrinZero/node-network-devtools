@@ -1,5 +1,5 @@
 import { DevtoolServer } from './devtool'
-import { READY_MESSAGE, RequestDetail } from '../common'
+import { PORT, READY_MESSAGE, RequestDetail } from '../common'
 import zlib from 'node:zlib'
 import { Server } from 'ws'
 import { RequestHeaderPipe } from './pipe'
@@ -9,7 +9,9 @@ import { EffectCleaner, PluginInstance } from './module/common'
 import { pathToFileURL } from 'url'
 
 export interface RequestCenterInitOptions {
-  port?: number
+  port: number
+  serverPort: number
+  autoOpenDevtool?: boolean
   requests?: Record<string, RequestDetail>
 }
 
@@ -29,10 +31,14 @@ export class RequestCenter {
   private server: Server
   private effects: Array<EffectCleaner> = []
   private listeners: Record<string, DevtoolMessageListener[] | undefined> = {}
-  constructor({ port, requests }: { port: number; requests?: Record<string, RequestDetail> }) {
+  private options: RequestCenterInitOptions
+  constructor(options: RequestCenterInitOptions) {
+    this.options = options
+    const { serverPort, requests, autoOpenDevtool } = options
     this.requests = requests || {}
     this.devtool = new DevtoolServer({
-      port
+      port: serverPort,
+      autoOpenDevtool: autoOpenDevtool
     })
     this.resourceService = new ResourceService()
     this.devtool.on((error, message) => {
@@ -136,7 +142,7 @@ export class RequestCenter {
   }
 
   private initServer() {
-    const server = new Server({ port: 5270 })
+    const server = new Server({ port: this.options.port || PORT })
     server.on('connection', (ws) => {
       ws.on('message', (data) => {
         const message = JSON.parse(data.toString())
@@ -147,6 +153,8 @@ export class RequestCenter {
           case 'endRequest':
           case 'responseData':
             this[_message.type](_message.data)
+            break
+          default:
             break
         }
       })

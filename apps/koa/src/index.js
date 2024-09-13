@@ -1,3 +1,5 @@
+const WebSocket = require('ws')
+
 const run = () => {
   let register
   try {
@@ -68,6 +70,20 @@ const run = () => {
     const res = await fetch('https://jsonplaceholder.typicode.com/posts')
     const data = await res.json()
     ctx.body = data
+  })
+
+  router.get('/ws', async (ctx) => {
+    const ws = new WebSocket('wss://echo.websocket.org/')
+    ws.onopen = () => {
+      ws.send('Hello from Koa')
+    }
+    ws.onmessage = (event) => {
+      console.log('WebSocket message:', event.data)
+    }
+    ws.onclose = () => {
+      console.log('WebSocket connection closed')
+    }
+    ctx.body = 'WebSocket connection established'
   })
 
   app.use(router.routes())

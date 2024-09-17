@@ -33,6 +33,22 @@ function proxyClientRequestFactory(
     mainProcess.endRequest(requestDetail)
   })
 
+  if (requestDetail.requestHeaders['Upgrade'] === 'websocket') {
+    actualRequest.on('upgrade', (res, socket, head) => {
+      const originalWrite = socket.write
+      socket.write = (data: any, ...rest: any[]) => {
+        const buf = Buffer.from(data)
+        console.log('socket requestDetail', requestDetail)
+        console.log('socket.write', buf.toString())
+        return originalWrite.call(socket, data, ...rest)
+      }
+      socket.addListener('data', (data) => {
+        const buf = Buffer.from(data)
+        console.log('socket.data', buf.toString())
+      })
+    })
+  }
+
   return actualRequest
 }
 

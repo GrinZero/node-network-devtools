@@ -1,6 +1,9 @@
 import { RequestOptions, IncomingMessage, ClientRequest } from 'http'
 import { RequestDetail } from '../common'
 import { MainProcess } from './fork'
+import { Receiver } from './ws/reveiver'
+import { BINARY_TYPES } from './ws/constants'
+import { jsonParse } from '../utils'
 
 export interface RequestFn {
   (options: RequestOptions | string | URL, callback?: (res: IncomingMessage) => void): ClientRequest
@@ -36,15 +39,52 @@ function proxyClientRequestFactory(
   if (requestDetail.requestHeaders['Upgrade'] === 'websocket') {
     actualRequest.on('upgrade', (res, socket, head) => {
       const originalWrite = socket.write
+
+      const receiver = new Receiver({
+        allowSynchronousEvents: true,
+        binaryType: BINARY_TYPES[0],
+        isServer: false
+      })
+      const sender = new Receiver({
+        allowSynchronousEvents: true,
+        binaryType: BINARY_TYPES[0],
+        isServer: true
+      })
+      const hanlder = (data: any) => {
+        const str = data.toString()
+        console.log('socketmessage', jsonParse(str, str))
+        console.log('socket requestDetail', requestDetail)
+      }
+
+      receiver.on('message', hanlder)
+      sender.on('message', hanlder)
+      let chunk
+
       socket.write = (data: any, ...rest: any[]) => {
         const buf = Buffer.from(data)
-        console.log('socket requestDetail', requestDetail)
-        console.log('socket.write', buf.toString())
+        sender.write(buf)
         return originalWrite.call(socket, data, ...rest)
       }
       socket.addListener('data', (data) => {
         const buf = Buffer.from(data)
-        console.log('socket.data', buf.toString())
+        receiver.write(buf)
+      })
+      socket.addListener('close', () => {
+        chunk = socket.read()
+        if (chunk !== null) {
+          receiver.write(chunk)
+          sender.write(chunk)
+        }
+        receiver.end()
+        sender.end()
+        receiver.removeAllListeners()
+        sender.removeAllListeners()
+      })
+      socket.addListener('end', () => {
+        receiver.end()
+        sender.end()
+        receiver.removeAllListeners()
+        sender.removeAllListeners()
       })
     })
   }

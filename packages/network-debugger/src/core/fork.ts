@@ -78,7 +78,7 @@ export class MainProcess {
     forkProcess()
   }
 
-  private async send(data: any) {
+  public async send(data: any) {
     const ws = await this.ws
     ws.send(JSON.stringify(data))
   }

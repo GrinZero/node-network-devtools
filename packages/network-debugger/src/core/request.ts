@@ -1,6 +1,9 @@
 import { RequestOptions, IncomingMessage, ClientRequest } from 'http'
 import { RequestDetail } from '../common'
 import { MainProcess } from './fork'
+import { Receiver } from './ws/reveiver'
+import { BINARY_TYPES } from './ws/constants'
+import { jsonParse } from '../utils'
 
 export interface RequestFn {
   (options: RequestOptions | string | URL, callback?: (res: IncomingMessage) => void): ClientRequest
@@ -32,6 +35,101 @@ function proxyClientRequestFactory(
     requestDetail.requestEndTime = new Date().getTime()
     mainProcess.endRequest(requestDetail)
   })
+
+  if (requestDetail.requestHeaders['Upgrade'] === 'websocket') {
+    actualRequest.on('upgrade', (res, socket, head) => {
+      const originalWrite = socket.write
+
+      // transform http -> websocket
+      requestDetail.url = requestDetail
+        .url!.replace('http://', 'ws://')
+        .replace('https://', 'wss://')
+
+      if (requestDetail.url === 'ws://localhost/') {
+        return
+      }
+
+      mainProcess.send({
+        type: 'Network.webSocketCreated',
+        data: {
+          requestId: requestDetail.id
+        }
+      })
+
+      const receiver = new Receiver({
+        allowSynchronousEvents: true,
+        binaryType: BINARY_TYPES[0],
+        isServer: false
+      })
+      const sender = new Receiver({
+        allowSynchronousEvents: true,
+        binaryType: BINARY_TYPES[0],
+        isServer: true
+      })
+
+      const receiverHandler = (data: any) => {
+        const str = data.toString()
+        // const socketMessage = jsonParse(str, str)
+        mainProcess.send({
+          type: 'Network.webSocketFrameReceived',
+          data: {
+            requestId: requestDetail.id,
+            response: {
+              payloadData: str,
+              opcode: 1,
+              mask: false
+            }
+          }
+        })
+      }
+
+      const senderHanlder = (data: any) => {
+        const str = data.toString()
+        mainProcess.send({
+          type: 'Network.webSocketFrameSent',
+          data: {
+            requestId: requestDetail.id,
+            response: {
+              payloadData: str,
+              opcode: 1,
+              mask: true
+            }
+          }
+        })
+      }
+
+      receiver.on('message', receiverHandler)
+      sender.on('message', senderHanlder)
+      let chunk
+
+      socket.write = (data: any, ...rest: any[]) => {
+        const buf = Buffer.from(data)
+        sender.write(buf)
+        return originalWrite.call(socket, data, ...rest)
+      }
+      socket.addListener('data', (data) => {
+        const buf = Buffer.from(data)
+        receiver.write(buf)
+      })
+      socket.addListener('close', () => {
+        chunk = socket.read()
+        if (chunk !== null) {
+          receiver.write(chunk)
+          sender.write(chunk)
+        }
+        receiver.end()
+        sender.end()
+        receiver.removeAllListeners()
+        sender.removeAllListeners()
+      })
+      socket.addListener('end', () => {
+        receiver.end()
+        sender.end()
+        receiver.removeAllListeners()
+        sender.removeAllListeners()
+      })
+    })
+  }
 
   return actualRequest
 }

@@ -72,8 +72,14 @@ const run = () => {
     ctx.body = data
   })
 
+  let ws
   router.get('/ws', async (ctx) => {
-    const ws = new WebSocket('wss://echo.websocket.org/')
+    if (ws) {
+      ws.send('Hello from Koa')
+      ctx.body = 'WebSocket: Send'
+      return
+    }
+    ws = new WebSocket('wss://echo.websocket.org/')
     ws.onopen = () => {
       ws.send('Hello from Koa')
     }

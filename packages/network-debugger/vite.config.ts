@@ -24,7 +24,9 @@ export default defineConfig(({ mode }) => ({
         'url',
         'node:zlib',
         'node:diagnostics_channel',
-        'node:async_hooks'
+        'node:async_hooks',
+        'node:buffer',
+        'stream'
       ],
       output: {
         globals: {
@@ -39,7 +41,9 @@ export default defineConfig(({ mode }) => ({
           path: 'path',
           url: 'url',
           'node:diagnostics_channel': 'diagnostics_channel',
-          'node:async_hooks': 'async_hooks'
+          'node:async_hooks': 'async_hooks',
+          'node:buffer': 'buffer',
+          stream: 'stream'
         }
       }
     }

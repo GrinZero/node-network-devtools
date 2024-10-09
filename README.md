@@ -39,14 +39,16 @@ Node v22.6.0 experimentally supports network debugging. This library supports us
     - [x] click to jump
       - [x] base
       - [ ] Sourcemap
-- [ ] WebSocket
-  - [ ] messages
+- [x] WebSocket
+  - [x] messages
   - [ ] payload
+  - [ ] headers
   - [ ] ...
 - [ ] Compatibility
   - [x] commonjs
   - [x] esmodule
   - [ ] Bun
+  - [ ] Deno -- Maybe nice to PR to Deno
 
 ## 👀 Preview
 

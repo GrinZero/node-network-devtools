@@ -12,11 +12,6 @@ export interface ScriptSourceData {
   scriptId: string
 }
 
-export const useStore = () => {
-  const { devtool } = useContext()
-  devtool.send({})
-}
-
 export const debuggerPlugin = createPlugin(({ devtool, core }) => {
   useHandler<ScriptSourceData>('Debugger.getScriptSource', ({ id, data }) => {
     const { scriptId } = data

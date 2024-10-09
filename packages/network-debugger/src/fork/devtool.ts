@@ -18,6 +18,19 @@ export const toMimeType = (contentType: string) => {
   return contentType.split(';')[0] || 'text/plain'
 }
 
+export interface DevtoolMessageRequest {
+  method: string
+  params: Record<string, any>
+}
+
+export interface DevtoolMessageResponse {
+  id: string
+  result: any
+  method?: string
+}
+
+export type DevtoolMessage = DevtoolMessageRequest | DevtoolMessageResponse
+
 export class DevtoolServer {
   private server: Server
   private port: number
@@ -57,6 +70,11 @@ export class DevtoolServer {
         resolve([socket] satisfies [WebSocket])
       })
     })
+  }
+
+  public getTimestamp() {
+    this.updateTimestamp()
+    return this.timestamp
   }
 
   private updateTimestamp() {
@@ -117,7 +135,7 @@ export class DevtoolServer {
     this.browser && this.browser.kill()
   }
 
-  async send(message: any) {
+  async send(message: DevtoolMessage) {
     const [socket] = await this.socket
     return socket.send(JSON.stringify(message))
   }

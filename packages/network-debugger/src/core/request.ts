@@ -40,6 +40,22 @@ function proxyClientRequestFactory(
     actualRequest.on('upgrade', (res, socket, head) => {
       const originalWrite = socket.write
 
+      // transform http -> websocket
+      requestDetail.url = requestDetail
+        .url!.replace('http://', 'ws://')
+        .replace('https://', 'wss://')
+
+      if (requestDetail.url === 'ws://localhost/') {
+        return
+      }
+
+      mainProcess.send({
+        type: 'Network.webSocketCreated',
+        data: {
+          requestId: requestDetail.id
+        }
+      })
+
       const receiver = new Receiver({
         allowSynchronousEvents: true,
         binaryType: BINARY_TYPES[0],
@@ -50,14 +66,40 @@ function proxyClientRequestFactory(
         binaryType: BINARY_TYPES[0],
         isServer: true
       })
-      const hanlder = (data: any) => {
+
+      const receiverHandler = (data: any) => {
         const str = data.toString()
-        console.log('socketmessage', jsonParse(str, str))
-        console.log('socket requestDetail', requestDetail)
+        // const socketMessage = jsonParse(str, str)
+        mainProcess.send({
+          type: 'Network.webSocketFrameReceived',
+          data: {
+            requestId: requestDetail.id,
+            response: {
+              payloadData: str,
+              opcode: 1,
+              mask: false
+            }
+          }
+        })
       }
 
-      receiver.on('message', hanlder)
-      sender.on('message', hanlder)
+      const senderHanlder = (data: any) => {
+        const str = data.toString()
+        mainProcess.send({
+          type: 'Network.webSocketFrameSent',
+          data: {
+            requestId: requestDetail.id,
+            response: {
+              payloadData: str,
+              opcode: 1,
+              mask: true
+            }
+          }
+        })
+      }
+
+      receiver.on('message', receiverHandler)
+      sender.on('message', senderHanlder)
       let chunk
 
       socket.write = (data: any, ...rest: any[]) => {

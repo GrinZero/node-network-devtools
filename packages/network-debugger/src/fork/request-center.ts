@@ -155,6 +155,28 @@ export class RequestCenter {
             this[_message.type](_message.data)
             break
           default:
+            {
+              const listenerList = this.listeners[_message.type]
+              if (!listenerList) {
+                console.warn('unknown message type', _message.type)
+                break
+              }
+
+              if (!_message.data.requestId) {
+                console.warn('requestId is not found', _message)
+                break
+              }
+
+              const id = _message.data.requestId
+              const request = this.getRequest(id)
+              listenerList.forEach((listener) => {
+                listener({
+                  data: _message.data,
+                  request,
+                  id
+                })
+              })
+            }
             break
         }
       })

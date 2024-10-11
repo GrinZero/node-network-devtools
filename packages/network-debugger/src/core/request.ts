@@ -1,9 +1,8 @@
-import { RequestOptions, IncomingMessage, ClientRequest } from 'http'
+import { ClientRequest, IncomingMessage, RequestOptions } from 'http'
 import { RequestDetail } from '../common'
 import { MainProcess } from './fork'
-import { Receiver } from './ws/reveiver'
 import { BINARY_TYPES } from './ws/constants'
-import { jsonParse } from '../utils'
+import { Receiver } from './ws/reveiver'
 
 export interface RequestFn {
   (options: RequestOptions | string | URL, callback?: (res: IncomingMessage) => void): ClientRequest
@@ -52,7 +51,9 @@ function proxyClientRequestFactory(
       mainProcess.send({
         type: 'Network.webSocketCreated',
         data: {
-          requestId: requestDetail.id
+          requestId: requestDetail.id,
+          url: requestDetail.url,
+          initiator: requestDetail.initiator
         }
       })
 
@@ -121,6 +122,13 @@ function proxyClientRequestFactory(
         sender.end()
         receiver.removeAllListeners()
         sender.removeAllListeners()
+        mainProcess.send({
+          method: 'Network.webSocketClosed',
+          params: {
+            requestId: requestDetail.id,
+            timestamp: new Date().getTime() / 1000
+          }
+        })
       })
       socket.addListener('end', () => {
         receiver.end()

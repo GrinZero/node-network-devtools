@@ -1,6 +1,7 @@
 import { ClientRequest, IncomingMessage, RequestOptions } from 'http'
 import { Socket } from 'node:net'
 import { RequestDetail } from '../common'
+import { getTimestamp } from '../utils'
 import { MainProcess } from './fork'
 import { BINARY_TYPES } from './ws/constants'
 import { Receiver } from './ws/reveiver'
@@ -129,7 +130,7 @@ function proxyClientRequestFactory(
           method: 'Network.webSocketClosed',
           params: {
             requestId: requestDetail.id,
-            timestamp: new Date().getTime() / 1000
+            timestamp: getTimestamp()
           }
         })
       })

@@ -1,18 +1,21 @@
-export const converHeaderText = (base = '', headers: Record<string, unknown>) => {
-  const headerText =
-    base +
-    Object.keys(headers)
-      .map((key) => {
-        return `${key}: ${headers[key]}`
-      })
-      .join('\r\n')
-  return headerText
-}
+export const formatHeadersToHeaderText = (base: string, headers: Record<string, unknown>) =>
+  base +
+  Object.entries(headers)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join('\r\n')
 
-export const convertRawHeaders = (rawHeaders: string[]) => {
-  const headers: Record<string, unknown> = {}
-  for (let i = 0; i < rawHeaders.length; i += 2) {
-    headers[rawHeaders[i]] = rawHeaders[i + 1]
-  }
-  return headers
-}
+export const parseRawHeaders = (rawHeaders: string[]) =>
+  rawHeaders.reduce(
+    (acc, _, index, arr) => (index % 2 === 0 ? { ...acc, [arr[index]]: arr[index + 1] } : acc),
+    {}
+  )
+
+export const stringifyNestedObj = (obj: { [x: string]: any }) =>
+  Object.keys(obj).reduce((acc: Record<string, unknown>, key) => {
+    const value = obj[key]
+    acc[key] =
+      typeof value === 'object' && value !== null ? stringifyNestedObj(value) : String(value)
+    return acc
+  }, {})
+
+export const getTimestamp = () => new Date().getTime() / 1000

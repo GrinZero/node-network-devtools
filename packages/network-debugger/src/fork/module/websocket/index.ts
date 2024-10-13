@@ -1,6 +1,11 @@
 import { IncomingMessage } from 'http'
 import { CDPCallFrame } from '../../../common'
-import { converHeaderText, convertRawHeaders } from '../../../utils'
+import {
+  formatHeadersToHeaderText,
+  getTimestamp,
+  parseRawHeaders,
+  stringifyNestedObj
+} from '../../../utils'
 import { createPlugin, useHandler } from '../common'
 
 export interface WebSocketFrameSent {
@@ -32,7 +37,7 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
         return
       }
 
-      const convertedResponseHeaders = convertRawHeaders(response.rawHeaders)
+      const convertedResponseHeaders = parseRawHeaders(response.rawHeaders)
 
       await devtool.send({
         method: 'Network.webSocketCreated',
@@ -60,17 +65,17 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
           requestId: request.id,
           response: {
             headers: convertedResponseHeaders,
-            headersText: converHeaderText(
+            headersText: formatHeadersToHeaderText(
               `HTTP/${response.httpVersion} ${response.statusCode} ${response.statusMessage}\r\n`,
               convertedResponseHeaders
             ),
             status: response.statusCode,
             statusText: response.statusMessage,
-            requestHeadersText: converHeaderText(
+            requestHeadersText: formatHeadersToHeaderText(
               `${request.method} ${request.url} HTTP/1.1\r\n`,
               request.requestHeaders
             ),
-            requestHeaders: request.requestHeaders
+            requestHeaders: stringifyNestedObj(request.requestHeaders)
           },
           timestamp: devtool.getTimestamp()
         }
@@ -89,7 +94,7 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
         requestId: data.requestId,
         response: data.response,
         // Network中数据时间戳
-        timestamp: new Date().getTime() / 1000
+        timestamp: getTimestamp()
       }
     })
   })
@@ -103,7 +108,7 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
       params: {
         requestId: data.requestId,
         response: data.response,
-        timestamp: new Date().getTime() / 1000
+        timestamp: getTimestamp()
       }
     })
   })
@@ -116,7 +121,7 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
       method: 'Network.webSocketClosed',
       params: {
         requestId: request.id,
-        timestamp: new Date().getTime() / 1000
+        timestamp: getTimestamp()
       }
     })
   })

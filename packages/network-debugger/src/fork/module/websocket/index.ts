@@ -72,7 +72,7 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
             status: response.statusCode,
             statusText: response.statusMessage,
             requestHeadersText: formatHeadersToHeaderText(
-              `${request.method} ${request.url} HTTP/1.1\r\n`,
+              `${request.method} ${request.url} HTTP/${response.httpVersion}\r\n`,
               request.requestHeaders
             ),
             requestHeaders: stringifyNestedObj(request.requestHeaders)

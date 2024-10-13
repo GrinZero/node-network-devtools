@@ -1,3 +1,4 @@
+import { converHeaderText } from '../../../utils'
 import { createPlugin, useHandler } from '../common'
 
 export interface WebSocketFrameSent {
@@ -34,17 +35,7 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
         }
       }
     })
-
-    const converHeaderText = (base = '', headers: Record<string, unknown>) => {
-      const headerText =
-        base +
-        Object.keys(headers)
-          .map((key) => {
-            return `${key}: ${headers[key]}`
-          })
-          .join('\r\n')
-      return headerText
-    }
+    console.log('request', request)
 
     await devtool.send({
       method: 'Network.webSocketHandshakeResponseReceived',

@@ -1,4 +1,6 @@
-import { converHeaderText } from '../../../utils'
+import { IncomingMessage } from 'http'
+import { CDPCallFrame } from '../../../common'
+import { converHeaderText, convertRawHeaders } from '../../../utils'
 import { createPlugin, useHandler } from '../common'
 
 export interface WebSocketFrameSent {
@@ -10,55 +12,71 @@ export interface WebSocketFrameSent {
   }
 }
 
-export const websocketPlugin = createPlugin(({ devtool }) => {
-  useHandler('Network.webSocketCreated', async ({ request }) => {
-    if (!request) {
-      return
+export interface WebSocketCreated {
+  requestId: string
+  url: string
+  initiator: {
+    type: string
+    stack: {
+      callFrames: CDPCallFrame[]
     }
+  }
+  response: IncomingMessage
+}
 
-    await devtool.send({
-      method: 'Network.webSocketCreated',
-      params: {
-        url: request.url,
-        initiator: request.initiator,
-        requestId: request.id
+export const websocketPlugin = createPlugin(({ devtool }) => {
+  useHandler<WebSocketCreated>(
+    'Network.webSocketCreated',
+    async ({ request, data: { response } }) => {
+      if (!request) {
+        return
       }
-    })
-    await devtool.send({
-      method: 'Network.webSocketWillSendHandshakeRequest',
-      params: {
-        wallTime: Date.now(),
-        timestamp: devtool.getTimestamp(),
-        requestId: request.id,
-        request: {
-          headers: request.requestHeaders
+
+      const convertedResponseHeaders = convertRawHeaders(response.rawHeaders)
+
+      await devtool.send({
+        method: 'Network.webSocketCreated',
+        params: {
+          url: request.url,
+          initiator: request.initiator,
+          requestId: request.id
         }
-      }
-    })
-    console.log('request', request)
+      })
+      await devtool.send({
+        method: 'Network.webSocketWillSendHandshakeRequest',
+        params: {
+          wallTime: Date.now(),
+          timestamp: devtool.getTimestamp(),
+          requestId: request.id,
+          request: {
+            headers: request.requestHeaders
+          }
+        }
+      })
 
-    await devtool.send({
-      method: 'Network.webSocketHandshakeResponseReceived',
-      params: {
-        requestId: request.id,
-        response: {
-          headers: request.requestHeaders,
-          headersText: converHeaderText(
-            'HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: Upgrade\r\n',
-            request.requestHeaders
-          ),
-          status: 101,
-          statusText: 'Switching Protocols',
-          requestHeadersText: converHeaderText(
-            `GET ${request.url} HTTP/1.1\r\n`,
-            request.requestHeaders
-          ),
-          requestHeaders: request.requestHeaders
-        },
-        timestamp: devtool.getTimestamp()
-      }
-    })
-  })
+      await devtool.send({
+        method: 'Network.webSocketHandshakeResponseReceived',
+        params: {
+          requestId: request.id,
+          response: {
+            headers: convertedResponseHeaders,
+            headersText: converHeaderText(
+              `HTTP/${response.httpVersion} ${response.statusCode} ${response.statusMessage}\r\n`,
+              convertedResponseHeaders
+            ),
+            status: response.statusCode,
+            statusText: response.statusMessage,
+            requestHeadersText: converHeaderText(
+              `${request.method} ${request.url} HTTP/1.1\r\n`,
+              request.requestHeaders
+            ),
+            requestHeaders: request.requestHeaders
+          },
+          timestamp: devtool.getTimestamp()
+        }
+      })
+    }
+  )
 
   useHandler<WebSocketFrameSent>('Network.webSocketFrameSent', async ({ data }) => {
     if (!data.requestId) {

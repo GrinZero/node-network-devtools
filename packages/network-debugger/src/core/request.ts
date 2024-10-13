@@ -1,4 +1,5 @@
 import { ClientRequest, IncomingMessage, RequestOptions } from 'http'
+import { Socket } from 'node:net'
 import { RequestDetail } from '../common'
 import { MainProcess } from './fork'
 import { BINARY_TYPES } from './ws/constants'
@@ -36,7 +37,7 @@ function proxyClientRequestFactory(
   })
 
   if (requestDetail.requestHeaders['Upgrade'] === 'websocket') {
-    actualRequest.on('upgrade', (res, socket, head) => {
+    actualRequest.on('upgrade', (res: IncomingMessage, socket: Socket, head: Buffer) => {
       const originalWrite = socket.write
 
       // transform http -> websocket
@@ -48,12 +49,14 @@ function proxyClientRequestFactory(
         return
       }
 
+      // plugin中处理
       mainProcess.send({
         type: 'Network.webSocketCreated',
         data: {
           requestId: requestDetail.id,
           url: requestDetail.url,
-          initiator: requestDetail.initiator
+          initiator: requestDetail.initiator,
+          response: res
         }
       })
 

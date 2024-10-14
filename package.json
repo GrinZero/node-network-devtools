@@ -10,6 +10,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "dev:main": "turbo dev --filter=node-network-devtools",
     "dev:koa": "turbo dev --filter=koa",
+    "start:koa": "turbo start --filter=koa",
     "prepare": "husky install"
   },
   "devDependencies": {

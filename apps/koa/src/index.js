@@ -16,7 +16,7 @@ const run = () => {
   register({
     port: 5222,
     serverPort: 5333,
-    autoOpenDevtool: false
+    autoOpenDevtool: true
   })
 
   const app = new Koa()
@@ -75,7 +75,9 @@ const run = () => {
   let ws
   router.get('/ws', async (ctx) => {
     if (ws) {
-      ws.send('Hello from Koa')
+      // 拿到 params 中的 message
+      const message = ctx.query.message
+      ws.send(message || 'Hello from Koa')
       ctx.body = 'WebSocket: Send'
       return
     }

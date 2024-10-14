@@ -1,9 +1,10 @@
-import { RequestOptions, IncomingMessage, ClientRequest } from 'http'
+import { ClientRequest, IncomingMessage, RequestOptions } from 'http'
+import { Socket } from 'node:net'
 import { RequestDetail } from '../common'
+import { getTimestamp } from '../utils'
 import { MainProcess } from './fork'
-import { Receiver } from './ws/reveiver'
 import { BINARY_TYPES } from './ws/constants'
-import { jsonParse } from '../utils'
+import { Receiver } from './ws/reveiver'
 
 export interface RequestFn {
   (options: RequestOptions | string | URL, callback?: (res: IncomingMessage) => void): ClientRequest
@@ -37,7 +38,7 @@ function proxyClientRequestFactory(
   })
 
   if (requestDetail.requestHeaders['Upgrade'] === 'websocket') {
-    actualRequest.on('upgrade', (res, socket, head) => {
+    actualRequest.on('upgrade', (res: IncomingMessage, socket: Socket, head: Buffer) => {
       const originalWrite = socket.write
 
       // transform http -> websocket
@@ -49,10 +50,14 @@ function proxyClientRequestFactory(
         return
       }
 
+      // plugin中处理
       mainProcess.send({
         type: 'Network.webSocketCreated',
         data: {
-          requestId: requestDetail.id
+          requestId: requestDetail.id,
+          url: requestDetail.url,
+          initiator: requestDetail.initiator,
+          response: res
         }
       })
 
@@ -121,6 +126,13 @@ function proxyClientRequestFactory(
         sender.end()
         receiver.removeAllListeners()
         sender.removeAllListeners()
+        mainProcess.send({
+          method: 'Network.webSocketClosed',
+          params: {
+            requestId: requestDetail.id,
+            timestamp: getTimestamp()
+          }
+        })
       })
       socket.addListener('end', () => {
         receiver.end()

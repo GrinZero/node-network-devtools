@@ -30,7 +30,8 @@ const run = () => {
     const res = await axios.post('https://jsonplaceholder.typicode.com/posts', {
       title: 'foo',
       body: 'bar',
-      userId: 1
+      userId: 1,
+      type: 'post'
     })
     ctx.body = res.data
   })
@@ -39,7 +40,8 @@ const run = () => {
     const res = await axios.put('https://jsonplaceholder.typicode.com/posts/1', {
       title: 'foo',
       body: 'bar',
-      userId: 101
+      userId: 101,
+      type: 'put'
     })
     ctx.body = res.data
   })

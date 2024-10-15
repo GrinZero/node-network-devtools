@@ -1,9 +1,8 @@
-import { IS_DEV_MODE, PORT, READY_MESSAGE, RequestDetail } from '../common'
+import { IS_DEV_MODE, READY_MESSAGE, RequestDetail } from '../common'
 import { type IncomingMessage } from 'http'
 import WebSocket from 'ws'
 import { fork } from 'child_process'
-import fs from 'fs'
-import { LOCK_FILE, __dirname } from '../common'
+import { __dirname } from '../common'
 import { resolve } from 'path'
 import { RegisterOptions } from '../common'
 
@@ -13,23 +12,20 @@ export class MainProcess {
 
   constructor(props: RegisterOptions) {
     this.options = props
-    this.ws = new Promise<WebSocket>((resolve) => {
-      const tryResolveSocker = () => {
+    this.ws = new Promise<WebSocket>((resolve, reject) => {
+      const socket = new WebSocket(`ws://localhost:${props.port}`)
+      socket.on('open', () => {
+        resolve(socket)
+      })
+      socket.on('error', (e) => {
         this.openProcess(() => {
           const socket = new WebSocket(`ws://localhost:${props.port}`)
           socket.on('open', () => {
             resolve(socket)
           })
-          socket.on('error', (e) => {
-            console.error('MainProcess Socket Error: ', e)
-            if (fs.existsSync(LOCK_FILE)) {
-              fs.unlinkSync(LOCK_FILE)
-            }
-            tryResolveSocker()
-          })
+          socket.on('error', reject)
         })
-      }
-      tryResolveSocker()
+      })
     })
     this.ws.then((ws) => {
       ws.on('error', (e) => {
@@ -50,7 +46,6 @@ export class MainProcess {
       const handleMsg = (e: any) => {
         if (e === READY_MESSAGE) {
           callback && callback()
-          fs.writeFileSync(LOCK_FILE, String(cp.pid))
           cp.off('message', handleMsg)
         }
       }
@@ -59,20 +54,7 @@ export class MainProcess {
     }
 
     if (IS_DEV_MODE) {
-      try {
-        if (fs.existsSync(LOCK_FILE)) {
-          const pid = fs.readFileSync(LOCK_FILE, 'utf-8')
-          process.kill(Number(pid), 'SIGTERM')
-        }
-      } catch (e) {
-        console.error("Don't worry. Error while killing process", e)
-      }
-
       forkProcess()
-      return
-    }
-    if (fs.existsSync(LOCK_FILE)) {
-      callback && callback()
       return
     }
     forkProcess()

@@ -30,14 +30,6 @@ npm i node-network-devtools
   </CodeGroupItem>
 </CodeGroup>
 
-## Config
-
-Add this code to your `.gitignore` file. Although this will not have any impact on operation, it is recommended that you do so.
-
-```
-request-center.lock
-```
-
 ## Usage
 
 Node.js programs that support both ESM and CommonJS standards only need to introduce and call the 'register' method in the entry file.

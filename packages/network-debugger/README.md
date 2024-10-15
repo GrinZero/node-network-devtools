@@ -27,7 +27,7 @@ Node network devtools is designed to address this issue by allowing you to debug
 
 Node v22.6.0 experimentally supports network debugging. This library supports use before node v22.6.0, but the specific supported versions are unknown.
 
-## 🎮 TODO
+## 🎮 Features
 
 - [x] HTTP/HTTPS
   - [x] req/res headers
@@ -75,9 +75,5 @@ import { register } from 'node-network-devtools'
 
 process.env.NODE_ENV === 'development' && register()
 ```
-
-## 📚 Documentation
-
-If you encounter any problems, you can try cleaning the `request-center.lock` file
 
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FGrinZero%2Fnode-network-devtools&labelColor=%237fa1f7&countColor=%23697689)

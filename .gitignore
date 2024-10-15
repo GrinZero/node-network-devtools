@@ -37,9 +37,6 @@ yarn-error.log*
 .DS_Store
 *.pem
 
-# Node Network Devtools
-request-center.lock
-
 # Vuepress
 .cache
 .temp

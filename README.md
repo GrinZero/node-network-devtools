@@ -27,7 +27,7 @@ Node network devtools is designed to address this issue by allowing you to debug
 
 Node v22.6.0 experimentally supports network debugging. This library supports use before node v22.6.0, but the specific supported versions are unknown.
 
-## 🎮 TODO
+## 🎮 Features
 
 - [x] HTTP/HTTPS
   - [x] req/res headers

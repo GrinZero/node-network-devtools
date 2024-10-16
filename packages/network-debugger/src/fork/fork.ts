@@ -1,6 +1,5 @@
 import { RequestCenter } from './request-center'
-import { LOCK_FILE, PORT, RegisterOptions, SERVER_PORT } from '../common'
-import fs from 'fs'
+import { PORT, RegisterOptions, SERVER_PORT } from '../common'
 import { loadPlugin } from './module'
 import { jsonParse } from '../utils'
 
@@ -37,9 +36,6 @@ setInterval(() => {
 }, cleanRestartCountInterval)
 
 const clean = () => {
-  if (fs.existsSync(LOCK_FILE)) {
-    fs.unlinkSync(LOCK_FILE)
-  }
   process.exit(0)
 }
 process.on('exit', clean)

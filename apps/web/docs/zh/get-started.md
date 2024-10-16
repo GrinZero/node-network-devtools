@@ -30,14 +30,6 @@ npm i node-network-devtools
   </CodeGroupItem>
 </CodeGroup>
 
-## 配置
-
-将此文件添加到`.gitignore`文件中。虽然这不会对使用产生任何影响，但建议这样做。
-
-```
-request-center.lock
-```
-
 ## 使用
 
 支持 esm 和 commonjs 标准的nodejs程序，只需要在入口文件中引入并调用`register`方法即可。

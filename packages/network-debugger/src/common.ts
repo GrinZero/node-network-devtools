@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'url'
 import { getStackFrames, initiatorStackPipe } from './utils/stack'
 import { dirname } from 'path'
+import { generateUUID } from './utils'
 
 export interface CDPCallFrame {
   columnNumber: number
@@ -10,11 +11,10 @@ export interface CDPCallFrame {
   scriptId?: string
 }
 
-let uid = 0
 export class RequestDetail {
   id: string
   constructor() {
-    this.id = String(uid++)
+    this.id = generateUUID()
     this.responseInfo = {}
   }
 
@@ -65,7 +65,6 @@ export class RequestDetail {
     }
   }
 }
-export const LOCK_FILE = 'request-center.lock'
 export const PORT = Number(process.env.NETWORK_PORT || 5270)
 export const SERVER_PORT = Number(process.env.NETWORK_SERVER_PORT || 5271)
 export const REMOTE_DEBUGGER_PORT = Number(process.env.REMOTE_DEBUGGER_PORT || 9333)

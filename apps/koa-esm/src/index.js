@@ -3,11 +3,16 @@ import { register } from 'node-network-devtools'
 import axios from 'axios'
 import Koa from 'koa'
 import Router from 'koa-router'
-
+import got from 'got'
 register()
 
 const app = new Koa()
 const router = new Router()
+
+router.get('/got', async (ctx) => {
+  const res = await got('https://jsonplaceholder.typicode.com/posts')
+  ctx.body = res.body
+})
 router.get('/', async (ctx) => {
   const res = await axios.get('https://jsonplaceholder.typicode.com/posts')
   ctx.body = res.data

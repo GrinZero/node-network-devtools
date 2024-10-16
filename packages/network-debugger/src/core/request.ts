@@ -37,7 +37,7 @@ function proxyClientRequestFactory(
     mainProcess.endRequest(requestDetail)
   })
 
-  if (requestDetail.requestHeaders['Upgrade'] === 'websocket') {
+  if (requestDetail?.requestHeaders?.['Upgrade'] === 'websocket') {
     actualRequest.on('upgrade', (res: IncomingMessage, socket: Socket, head: Buffer) => {
       const originalWrite = socket.write
 

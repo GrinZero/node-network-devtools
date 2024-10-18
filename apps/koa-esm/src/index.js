@@ -13,6 +13,19 @@ router.get('/got', async (ctx) => {
   const res = await got('https://jsonplaceholder.typicode.com/posts')
   ctx.body = res.body
 })
+
+router.get('/juejin', async (ctx) => {
+  const res = await got({
+    method: 'post',
+    url: 'https://api.juejin.cn/content_api/v1/article/query_list',
+    json: {
+      user_id: '1645288319627576',
+      sort_type: 2
+    }
+  })
+  ctx.body = res
+})
+
 router.get('/', async (ctx) => {
   const res = await axios.get('https://jsonplaceholder.typicode.com/posts')
   ctx.body = res.data

@@ -195,6 +195,9 @@ export function requestProxyFactory(
     } else if (options && typeof options !== 'string' && !(options instanceof URL)) {
       const connectionType = isHttps ? 'https' : 'http'
       requestDetail.url = `${connectionType}://${options.hostname || options.host}${options.path}`
+    }
+
+    if (options && typeof options !== 'string' && !(options instanceof URL)) {
       requestDetail.method = options.method
       requestDetail.requestHeaders = options.headers
     }

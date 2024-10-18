@@ -1,4 +1,5 @@
-const WebSocket = require('ws')
+// const WebSocket = require('ws')
+import WebSocket from 'ws'
 
 const run = () => {
   let register
@@ -22,18 +23,18 @@ const run = () => {
 
   const app = new Koa()
   const router = new Router()
-  router.get('/', async (ctx) => {
+  router.get('/', async (ctx: any) => {
     const res = await axios.get('https://jsonplaceholder.typicode.com/posts')
     ctx.body = res.data
   })
 
-  router.get('/ofetch', async (ctx) => {
+  router.get('/ofetch', async (ctx: any) => {
     const fetch = createFetch()
     const res = await fetch('https://jsonplaceholder.typicode.com/posts')
     ctx.body = res
   })
 
-  router.get('/post', async (ctx) => {
+  router.get('/post', async (ctx: any) => {
     const res = await axios.post('https://jsonplaceholder.typicode.com/posts', {
       title: 'foo',
       body: 'bar',
@@ -43,7 +44,7 @@ const run = () => {
     ctx.body = res.data
   })
 
-  router.get('/put', async (ctx) => {
+  router.get('/put', async (ctx: any) => {
     const res = await axios.put('https://jsonplaceholder.typicode.com/posts/1', {
       title: 'foo',
       body: 'bar',
@@ -53,36 +54,36 @@ const run = () => {
     ctx.body = res.data
   })
 
-  router.get('/patch', async (ctx) => {
+  router.get('/patch', async (ctx: any) => {
     const res = await axios.patch('https://jsonplaceholder.typicode.com/posts/1', {
       title: 'xxx'
     })
     ctx.body = res.data
   })
 
-  router.get('/delete', async (ctx) => {
+  router.get('/delete', async (ctx: any) => {
     const res = await axios.delete('https://jsonplaceholder.typicode.com/posts/1')
     ctx.body = res.data
   })
 
-  router.get('/img', async (ctx) => {
+  router.get('/img', async (ctx: any) => {
     const res = await axios.get('https://picsum.photos/30/30')
     ctx.body = res.data
   })
 
-  router.get('/baidu', async (ctx) => {
+  router.get('/baidu', async (ctx: any) => {
     const res = await axios.get('http://www.baidu.com')
     ctx.body = res.data
   })
 
-  router.get('/fetch', async (ctx) => {
+  router.get('/fetch', async (ctx: any) => {
     const res = await fetch('https://jsonplaceholder.typicode.com/posts')
     const data = await res.json()
     ctx.body = data
   })
 
-  let ws
-  router.get('/ws', async (ctx) => {
+  let ws: any
+  router.get('/ws', async (ctx: any) => {
     if (ws) {
       // 拿到 params 中的 message
       const message = ctx.query.message
@@ -94,7 +95,7 @@ const run = () => {
     ws.onopen = () => {
       ws.send('Hello from Koa')
     }
-    ws.onmessage = (event) => {
+    ws.onmessage = (event: any) => {
       console.log('WebSocket message:', event.data)
     }
     ws.onclose = () => {

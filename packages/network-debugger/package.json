@@ -1,6 +1,6 @@
 {
-  "name": "node-network-devtools",
-  "version": "1.0.12",
+  "name": "node-netork-devtools",
+  "version": "1.0.13",
   "description": "Inspecting Node.js's Network with Chrome DevTools",
   "homepage": "https://grinzero.github.io/node-network-devtools/",
   "main": "./dist/index.js",

@@ -16,8 +16,6 @@ const run = () => {
   const { createFetch } = require('ofetch')
 
   register({
-    port: 5222,
-    serverPort: 5333,
     autoOpenDevtool: true
   })
 

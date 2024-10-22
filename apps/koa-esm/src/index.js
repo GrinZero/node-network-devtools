@@ -78,7 +78,9 @@ router.get('/fetch', async (ctx) => {
 })
 
 app.use(router.routes())
-app.listen(3000)
+app.listen(3001)
+
+console.log('koa-esm is running on port 3001')
 
 process.on('message', (msg) => {
   console.log('Message from parent:', msg)

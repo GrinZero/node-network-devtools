@@ -21,14 +21,19 @@ let restartCount = 0
 const restartLimit = 5
 const cleanRestartCountInterval = 30 * 1000
 const restart = () => {
-  restartCount++
-  if (restartCount >= restartLimit) {
-    console.error('Restart limit reached')
-    clean()
-    return
-  }
-  main.close()
-  main = loadCenter()
+  setTimeout(
+    () => {
+      restartCount++
+      if (restartCount >= restartLimit) {
+        console.error('Restart limit reached')
+        clean()
+        return
+      }
+      main.close()
+      main = loadCenter()
+    },
+    10 + Math.random() * 100
+  )
 }
 
 setInterval(() => {

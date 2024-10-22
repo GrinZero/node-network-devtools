@@ -17,11 +17,25 @@ export class BodyTransformer {
 
     const isBinary = !/text|json|xml/.test(contentType)
     const body = (() => {
+      if (req.responseData === undefined || req.responseData === null) {
+        return void 0
+      }
       if (isBinary) {
         return req.responseData.toString('base64')
       }
-      if (req.responseData instanceof Buffer) {
+      if (Buffer.isBuffer(req.responseData)) {
         return iconv.decode(req.responseData, encoding)
+      }
+      // if responseData is `JSON.stringify(Buffer)` => {"type":"Buffer","data":[1,2,3,4,5]}
+      // need to decode the Buffer
+      if (
+        typeof req.responseData === 'object' &&
+        'type' in req.responseData &&
+        req.responseData.type === 'Buffer' &&
+        'data' in req.responseData &&
+        Array.isArray(req.responseData.data)
+      ) {
+        return iconv.decode(Buffer.from(req.responseData.data), encoding)
       }
       return req.responseData
     })()

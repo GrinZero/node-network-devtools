@@ -15,11 +15,21 @@ export async function register(props?: RegisterOptions) {
     autoOpenDevtool
   })
 
-  proxyFetch(mainProcess)
+  const unsetFetchProxy = proxyFetch(mainProcess)
 
+  const originAgentRequests = new WeakMap()
   const agents = [http, https]
   agents.forEach((agent) => {
+    originAgentRequests.set(agent, agent.request)
     const actualRequestHandlerFn = agent.request
     agent.request = requestProxyFactory(actualRequestHandlerFn, agent === https, mainProcess)
   })
+  return () => {
+    unsetFetchProxy && unsetFetchProxy()
+    agents.forEach((agent) => {
+      agent.request = originAgentRequests.get(agent)
+      originAgentRequests.delete(agent)
+    })
+    mainProcess.dispose()
+  }
 }

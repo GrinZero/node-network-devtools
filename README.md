@@ -76,4 +76,13 @@ import { register } from 'node-network-devtools'
 process.env.NODE_ENV === 'development' && register()
 ```
 
+To stop debugging network requests and eliminate side effects, just use the return value of the `register` method for cleanup.
+
+```typescript
+import { register } from 'node-network-devtools'
+
+const unregister = register()
+unregister()
+```
+
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FGrinZero%2Fnode-network-devtools&labelColor=%237fa1f7&countColor=%23697689)

@@ -71,6 +71,15 @@ import { register } from 'node-network-devtools'
 process.env.NODE_ENV === 'development' && register()
 ```
 
+如果需要停止调试网络请求并消除副作用，只需使用 `register` 方法的返回值进行清理。
+
+```typescript
+import { register } from 'node-network-devtools'
+
+const unregister = register()
+unregister()
+```
+
 ## 📚 文档
 
 如果遇到任何问题，可以尝试清理`request-centre.lock`文件

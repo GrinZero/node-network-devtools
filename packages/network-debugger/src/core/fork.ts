@@ -1,7 +1,7 @@
 import { IS_DEV_MODE, READY_MESSAGE, RequestDetail } from '../common'
 import { type IncomingMessage } from 'http'
 import WebSocket from 'ws'
-import { fork } from 'child_process'
+import { ChildProcess, fork } from 'child_process'
 import { __dirname } from '../common'
 import { resolve } from 'path'
 import { RegisterOptions } from '../common'
@@ -9,6 +9,7 @@ import { RegisterOptions } from '../common'
 export class MainProcess {
   private ws: Promise<WebSocket>
   private options: RegisterOptions
+  private cp?: ChildProcess
 
   constructor(props: RegisterOptions) {
     this.options = props
@@ -51,6 +52,7 @@ export class MainProcess {
       }
 
       cp.on('message', handleMsg)
+      this.cp = cp
     }
 
     if (IS_DEV_MODE) {
@@ -110,6 +112,16 @@ export class MainProcess {
         )
       })
     })
+  }
+
+  public async dispose() {
+    const ws = await this.ws
+    ws.removeAllListeners()
+    ws.terminate()
+    if (!this.cp) return
+    this.cp.removeAllListeners()
+    this.cp.kill()
+    this.cp = void 0
   }
 }
 export { __dirname }

@@ -14,7 +14,7 @@ const run = () => {
   const Router = require('koa-router')
   const { createFetch } = require('ofetch')
 
-  register({
+  const unregister = register({
     autoOpenDevtool: true
   })
 
@@ -29,6 +29,11 @@ const run = () => {
     const fetch = createFetch()
     const res = await fetch('https://jsonplaceholder.typicode.com/posts')
     ctx.body = res
+  })
+
+  router.get('/unregister', async (ctx) => {
+    unregister()
+    ctx.body = 'Unregistered'
   })
 
   router.get('/post', async (ctx) => {

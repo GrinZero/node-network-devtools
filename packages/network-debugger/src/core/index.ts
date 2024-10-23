@@ -7,7 +7,7 @@ import { PORT, SERVER_PORT } from '../common'
 
 import { RegisterOptions } from '../common'
 
-export async function register(props?: RegisterOptions) {
+export function register(props?: RegisterOptions) {
   const { port = PORT, serverPort = SERVER_PORT, autoOpenDevtool = true } = props || {}
   const mainProcess = new MainProcess({
     port,

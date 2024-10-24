@@ -3,23 +3,37 @@ import { type IncomingMessage } from 'http'
 import WebSocket from 'ws'
 import { ChildProcess, fork } from 'child_process'
 import { __dirname } from '../common'
-import { resolve } from 'path'
+import { resolve as resolvePath } from 'path'
 import { RegisterOptions } from '../common'
+import fs from 'fs'
+
+let hasLogError = false
 
 export class MainProcess {
   private ws: Promise<WebSocket>
   private options: RegisterOptions
   private cp?: ChildProcess
 
-  constructor(props: RegisterOptions) {
+  constructor(props: RegisterOptions & { key: string }) {
     this.options = props
     this.ws = new Promise<WebSocket>((resolve, reject) => {
+      const lockFilePath = resolvePath(__dirname, `./${props.key}`)
+      if (fs.existsSync(lockFilePath)) {
+        fs.watchFile(lockFilePath, (e) => {
+          if (!fs.existsSync(lockFilePath)) {
+            reject(new Error('MainProcess is already running'))
+          }
+        })
+        return
+      }
+      fs.writeFileSync(lockFilePath, `LOCKED`)
       const socket = new WebSocket(`ws://localhost:${props.port}`)
       socket.on('open', () => {
         resolve(socket)
       })
-      socket.on('error', (e) => {
+      socket.on('error', () => {
         this.openProcess(() => {
+          fs.unlinkSync(lockFilePath)
           const socket = new WebSocket(`ws://localhost:${props.port}`)
           socket.on('open', () => {
             resolve(socket)
@@ -28,17 +42,24 @@ export class MainProcess {
         })
       })
     })
-    this.ws.then((ws) => {
-      ws.on('error', (e) => {
-        console.error('MainProcess Socket Error: ', e)
+    this.ws
+      .then((ws) => {
+        ws.on('error', (e) => {
+          console.error('MainProcess Socket Error: ', e)
+        })
       })
-    })
+      .catch((e) => {
+        if (!hasLogError) {
+          !IS_DEV_MODE && (hasLogError = true)
+          console.warn('MainProcess Warning: ', e)
+        }
+      })
   }
 
   private openProcess(callback?: () => void) {
     const forkProcess = () => {
       // fork a new process with options
-      const cp = fork(resolve(__dirname, './fork'), {
+      const cp = fork(resolvePath(__dirname, './fork'), {
         env: {
           ...process.env,
           NETWORK_OPTIONS: JSON.stringify(this.options)
@@ -55,15 +76,20 @@ export class MainProcess {
       this.cp = cp
     }
 
-    if (IS_DEV_MODE) {
-      forkProcess()
-      return
-    }
     forkProcess()
   }
 
   public async send(data: any) {
-    const ws = await this.ws
+    const ws = await this.ws.catch((err) => {
+      if (hasLogError) {
+        // has error in main process or websocket
+        return null
+      }
+      !IS_DEV_MODE && (hasLogError = true)
+      console.warn('MainProcess Websocket Error: ', err)
+      return null
+    })
+    if (!ws) return
     ws.send(JSON.stringify(data))
   }
 

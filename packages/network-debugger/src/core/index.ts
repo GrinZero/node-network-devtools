@@ -6,13 +6,16 @@ import { proxyFetch } from './fetch'
 import { PORT, SERVER_PORT } from '../common'
 
 import { RegisterOptions } from '../common'
+import { generateHash } from '../utils'
 
 export function register(props?: RegisterOptions) {
   const { port = PORT, serverPort = SERVER_PORT, autoOpenDevtool = true } = props || {}
+  const key = generateHash(JSON.stringify({ port, serverPort, autoOpenDevtool }))
   const mainProcess = new MainProcess({
     port,
     serverPort,
-    autoOpenDevtool
+    autoOpenDevtool,
+    key
   })
 
   const unsetFetchProxy = proxyFetch(mainProcess)

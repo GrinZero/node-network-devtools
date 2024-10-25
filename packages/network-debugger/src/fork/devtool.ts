@@ -83,51 +83,59 @@ export class DevtoolServer {
 
   public async open() {
     const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`
-
-    if (IS_DEV_MODE) {
-      log(`In dev mode, open chrome devtool manually: ${url}`)
-      return
-    }
-
-    const pro = await open(url, {
-      app: {
-        name: apps.chrome,
-        arguments: [
-          process.platform !== 'darwin' ? `--remote-debugging-port=${REMOTE_DEBUGGER_PORT}` : ''
-        ]
+    try {
+      if (IS_DEV_MODE) {
+        log(`In dev mode, open chrome devtool manually: ${url}`)
+        return
       }
-    })
 
-    if (process.platform !== 'darwin') {
-      const json = await new Promise<{ webSocketDebuggerUrl: string; id: string }[]>((resolve) => {
-        let stop = setInterval(async () => {
-          try {
-            resolve((await fetch(`http://localhost:${REMOTE_DEBUGGER_PORT}/json`)).json())
-            clearInterval(stop)
-          } catch {
-            log('waiting for chrome to open')
-          }
-        }, 500)
-      })
-      const { id, webSocketDebuggerUrl } = json[0]
-      const debuggerWs = new WebSocket(webSocketDebuggerUrl)
-
-      debuggerWs.on('open', () => {
-        const navigateCommand = {
-          id,
-          method: 'Page.navigate',
-          params: {
-            url
-          }
+      const pro = await open(url, {
+        app: {
+          name: apps.chrome,
+          arguments: [
+            process.platform !== 'darwin' ? `--remote-debugging-port=${REMOTE_DEBUGGER_PORT}` : ''
+          ]
         }
-        debuggerWs.send(JSON.stringify(navigateCommand))
-        debuggerWs.close()
       })
-    }
 
-    log('opened in chrome or click here to open chrome devtool: ', url)
-    this.browser = pro
-    return pro
+      if (process.platform !== 'darwin') {
+        const json = await new Promise<{ webSocketDebuggerUrl: string; id: string }[]>(
+          (resolve) => {
+            let stop = setInterval(async () => {
+              try {
+                resolve((await fetch(`http://localhost:${REMOTE_DEBUGGER_PORT}/json`)).json())
+                clearInterval(stop)
+              } catch {
+                log('waiting for chrome to open')
+              }
+            }, 500)
+          }
+        )
+        const { id, webSocketDebuggerUrl } = json[0]
+        const debuggerWs = new WebSocket(webSocketDebuggerUrl)
+
+        debuggerWs.on('open', () => {
+          const navigateCommand = {
+            id,
+            method: 'Page.navigate',
+            params: {
+              url
+            }
+          }
+          debuggerWs.send(JSON.stringify(navigateCommand))
+          debuggerWs.close()
+        })
+      }
+
+      log('opened in chrome or click here to open chrome devtool: ', url)
+      this.browser = pro
+      return pro
+    } catch (error) {
+      console.warn(
+        "Open devtools failed, but don't worry, you can open it in browser(Chrome or Edge) manually: " +
+          url
+      )
+    }
   }
 
   public close() {

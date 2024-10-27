@@ -95,7 +95,8 @@ export class DevtoolServer {
           arguments: [
             process.platform !== 'darwin' ? `--remote-debugging-port=${REMOTE_DEBUGGER_PORT}` : ''
           ]
-        }
+        },
+        wait: true
       })
 
       if (process.platform !== 'darwin') {

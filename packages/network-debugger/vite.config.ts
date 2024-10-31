@@ -26,7 +26,8 @@ export default defineConfig(({ mode }) => ({
         'node:diagnostics_channel',
         'node:async_hooks',
         'node:buffer',
-        'stream'
+        'stream',
+        'net'
       ],
       output: {
         globals: {
@@ -43,7 +44,8 @@ export default defineConfig(({ mode }) => ({
           'node:diagnostics_channel': 'diagnostics_channel',
           'node:async_hooks': 'async_hooks',
           'node:buffer': 'buffer',
-          stream: 'stream'
+          stream: 'stream',
+          net: 'net'
         }
       }
     }

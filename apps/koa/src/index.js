@@ -14,9 +14,8 @@ const run = () => {
   const Router = require('koa-router')
   const { createFetch } = require('ofetch')
 
-  const unregister = register({
-    autoOpenDevtool: true
-  })
+  const unregister = register()
+  register()
 
   const app = new Koa()
   const router = new Router()

@@ -1,4 +1,4 @@
-import { IS_DEV_MODE, READY_MESSAGE, RequestDetail } from '../common'
+import { READY_MESSAGE, RequestDetail } from '../common'
 import { type IncomingMessage } from 'http'
 import WebSocket from 'ws'
 import { ChildProcess, fork } from 'child_process'
@@ -6,8 +6,15 @@ import { __dirname } from '../common'
 import { resolve as resolvePath } from 'path'
 import { RegisterOptions } from '../common'
 import fs from 'fs'
+import { sleep, checkMainProcessAlive } from '../utils/process'
+import { unlinkSafe } from '../utils/file'
+import { warn } from '../utils'
 
-let hasLogError = false
+class ExpectError extends Error {
+  constructor(message: string) {
+    super(message)
+  }
+}
 
 export class MainProcess {
   private ws: Promise<WebSocket>
@@ -16,24 +23,34 @@ export class MainProcess {
 
   constructor(props: RegisterOptions & { key: string }) {
     this.options = props
-    this.ws = new Promise<WebSocket>((resolve, reject) => {
+    this.ws = new Promise<WebSocket>(async (resolve, reject) => {
       const lockFilePath = resolvePath(__dirname, `./${props.key}`)
       if (fs.existsSync(lockFilePath)) {
-        fs.watchFile(lockFilePath, (e) => {
-          if (!fs.existsSync(lockFilePath)) {
-            reject(new Error('MainProcess is already running'))
-          }
-        })
-        return
+        // 读取 lock 文件中的进程号
+        const pid = fs.readFileSync(lockFilePath, 'utf-8')
+        await sleep(800)
+
+        // 检测该进程是否存活且 port 是否被占用
+        const isProcessAlice = await checkMainProcessAlive(pid, props.port!)
+        if (isProcessAlice) {
+          warn(`The main process with same options is already running, skip it.`)
+          return
+        }
+        // 如果进程不存在：
+        //   1. 热更新导致 process 重启
+        //   2. 上一个进程未成功删除 lock
+        // 都应该继续往下
+        unlinkSafe(lockFilePath)
       }
-      fs.writeFileSync(lockFilePath, `LOCKED`)
+      fs.writeFileSync(lockFilePath, `${process.pid}`)
       const socket = new WebSocket(`ws://localhost:${props.port}`)
       socket.on('open', () => {
+        unlinkSafe(lockFilePath)
         resolve(socket)
       })
       socket.on('error', () => {
         this.openProcess(() => {
-          fs.unlinkSync(lockFilePath)
+          unlinkSafe(lockFilePath)
           const socket = new WebSocket(`ws://localhost:${props.port}`)
           socket.on('open', () => {
             resolve(socket)
@@ -49,14 +66,14 @@ export class MainProcess {
         })
       })
       .catch((e) => {
-        if (!hasLogError) {
-          !IS_DEV_MODE && (hasLogError = true)
-          console.warn('MainProcess Warning: ', e)
+        if (e instanceof ExpectError) {
+          return
         }
+        throw e
       })
   }
 
-  private openProcess(callback?: () => void) {
+  private openProcess(callback?: (cp: ChildProcess) => void) {
     const forkProcess = () => {
       // fork a new process with options
       const cp = fork(resolvePath(__dirname, './fork'), {
@@ -67,7 +84,7 @@ export class MainProcess {
       })
       const handleMsg = (e: any) => {
         if (e === READY_MESSAGE) {
-          callback && callback()
+          callback && callback(cp)
           cp.off('message', handleMsg)
         }
       }
@@ -81,13 +98,10 @@ export class MainProcess {
 
   public async send(data: any) {
     const ws = await this.ws.catch((err) => {
-      if (hasLogError) {
-        // has error in main process or websocket
+      if (err instanceof ExpectError) {
         return null
       }
-      !IS_DEV_MODE && (hasLogError = true)
-      console.warn('MainProcess Websocket Error: ', err)
-      return null
+      throw err
     })
     if (!ws) return
     ws.send(JSON.stringify(data))

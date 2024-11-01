@@ -27,7 +27,14 @@ function fetchProxyFactory(fetchFn: typeof fetch, mainProcess: MainProcess) {
     }
 
     requestDetail.method = options?.method ?? 'GET'
-    requestDetail.requestHeaders = options?.headers ?? {}
+
+    const headers = options?.headers
+    if (headers instanceof Headers) {
+      const headersObj = headersToObject(headers)
+      requestDetail.requestHeaders = headersObj
+    } else {
+      requestDetail.requestHeaders = headers ?? {}
+    }
     requestDetail.requestData = options?.body
 
     mainProcess.registerRequest(requestDetail)

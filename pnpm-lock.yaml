@@ -62,6 +62,9 @@ importers:
       typescript:
         specifier: ^5.4.5
         version: 5.6.3
+      undici:
+        specifier: ^6.20.1
+        version: 6.20.1
       ws:
         specifier: ^8.17.0
         version: 8.17.0
@@ -303,6 +306,9 @@ importers:
       open:
         specifier: ^8.4.2
         version: 8.4.2
+      undici:
+        specifier: ^6.20.1
+        version: 6.20.1
       ws:
         specifier: ^8.17.0
         version: 8.17.0

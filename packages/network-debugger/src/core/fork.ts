@@ -9,6 +9,7 @@ import fs from 'fs'
 import { sleep, checkMainProcessAlive } from '../utils/process'
 import { unlinkSafe } from '../utils/file'
 import { warn } from '../utils'
+import { getCurrentCell } from './hooks/cell'
 
 class ExpectError extends Error {
   constructor(message: string) {
@@ -28,7 +29,7 @@ export class MainProcess {
       if (fs.existsSync(lockFilePath)) {
         // 读取 lock 文件中的进程号
         const pid = fs.readFileSync(lockFilePath, 'utf-8')
-        await sleep(800)
+        await sleep(1)
 
         // 检测该进程是否存活且 port 是否被占用
         const isProcessAlice = await checkMainProcessAlive(pid, props.port!)
@@ -97,6 +98,10 @@ export class MainProcess {
   }
 
   public async send(data: any) {
+    const currentCell = getCurrentCell()
+    if (currentCell?.isAborted) {
+      return
+    }
     const ws = await this.ws.catch((err) => {
       if (err instanceof ExpectError) {
         return null
@@ -108,9 +113,20 @@ export class MainProcess {
   }
 
   public registerRequest(request: RequestDetail) {
+    const currentCell = getCurrentCell()
+    let req = request
+    if (currentCell) {
+      currentCell.request = req
+      const pipes = currentCell.pipes.filter((p) => p.type === 'regsiter').map((p) => p.pipe)
+      pipes.forEach((pipe) => {
+        req = pipe(req)
+      })
+      currentCell.request = req
+    }
+
     this.send({
       type: 'registerRequest',
-      data: request
+      data: req
     })
   }
 

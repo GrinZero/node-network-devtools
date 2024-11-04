@@ -92,4 +92,28 @@ export interface RegisterOptions {
    * @default true
    */
   autoOpenDevtool?: boolean
+
+  /**
+   * @description The option to intercept a certain packet.
+   *   If set false, the packet will not be intercepted.
+   */
+  intercept?: {
+    /**
+     * @default true
+     */
+    fetch?: boolean
+    /**
+     * @default true
+     */
+    normal?: boolean
+    /**
+     * @default false
+     */
+    undici?:
+      | false
+      | {
+          fetch?: false | {}
+          normal?: false | {}
+        }
+  }
 }

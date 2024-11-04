@@ -23,11 +23,22 @@ export default defineConfig(({ mode }) => ({
         'path',
         'url',
         'node:zlib',
+        'node:assert',
+        'node:util',
+        'node:events',
+        'node:url',
+        'node:net',
+        'node:http',
+        'node:tls',
+        'node:stream',
+        'node:querystring',
+        'node:crypto',
         'node:diagnostics_channel',
         'node:async_hooks',
         'node:buffer',
         'stream',
-        'net'
+        'net',
+        'undici'
       ],
       output: {
         globals: {
@@ -45,7 +56,17 @@ export default defineConfig(({ mode }) => ({
           'node:async_hooks': 'async_hooks',
           'node:buffer': 'buffer',
           stream: 'stream',
-          net: 'net'
+          net: 'net',
+          undici: 'undici',
+          'node:util': 'node_util',
+          'node:events': 'node_events',
+          'node:url': 'node_url',
+          'node:net': 'node_net',
+          'node:http': 'node_http',
+          'node:tls': 'node_tls',
+          'node:stream': 'node_stream',
+          'node:querystring': 'node_querystring',
+          'node:crypto': 'node_crypto'
         }
       }
     }

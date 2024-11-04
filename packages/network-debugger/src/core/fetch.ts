@@ -1,6 +1,7 @@
 import { RequestDetail } from '../common'
 import { headersToObject } from '../utils/map'
 import { MainProcess } from './fork'
+import { setCurrentCell } from './hooks/cell'
 
 export function proxyFetch(mainProcess: MainProcess) {
   if (!globalThis.fetch) {
@@ -15,10 +16,11 @@ export function proxyFetch(mainProcess: MainProcess) {
   }
 }
 
-function fetchProxyFactory(fetchFn: typeof fetch, mainProcess: MainProcess) {
+export function fetchProxyFactory(fetchFn: typeof fetch, mainProcess: MainProcess) {
   return function (request: string | URL | Request, options?: RequestInit) {
     const requestDetail = new RequestDetail()
-    requestDetail.requestStartTime = new Date().getTime()
+    requestDetail.requestStartTime = Date.now()
+    setCurrentCell({ request: requestDetail, pipes: [], isAborted: false })
 
     if (typeof request === 'string') {
       requestDetail.url = request
@@ -37,10 +39,15 @@ function fetchProxyFactory(fetchFn: typeof fetch, mainProcess: MainProcess) {
     }
     requestDetail.requestData = options?.body
 
-    mainProcess.registerRequest(requestDetail)
-    return fetchFn(request as string | Request, options)
+    const result = fetchFn(request as string | Request, options)
       .then(fetchResponseHandlerFactory(requestDetail, mainProcess))
       .catch(fetchErrorHandlerFactory(requestDetail, mainProcess))
+      .finally(() => {
+        setCurrentCell(null)
+      })
+
+    mainProcess.registerRequest(requestDetail)
+    return result
   }
 }
 

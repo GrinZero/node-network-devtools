@@ -1,6 +1,6 @@
 {
   "name": "node-network-devtools",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Inspecting Node.js's Network with Chrome DevTools",
   "homepage": "https://grinzero.github.io/node-network-devtools/",
   "main": "./dist/index.js",
@@ -60,5 +60,8 @@
     "iconv-lite": "^0.6.3",
     "open": "^8.4.2",
     "ws": "^8.17.0"
+  },
+  "peerDependencies": {
+    "undici": "^6"
   }
 }

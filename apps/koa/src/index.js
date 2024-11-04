@@ -13,9 +13,16 @@ const run = () => {
   const Koa = require('koa')
   const Router = require('koa-router')
   const { createFetch } = require('ofetch')
+  const undici = require('undici')
 
   const unregister = register()
-  register()
+  register({
+    intercept: {
+      undici: {
+        fetch: true
+      }
+    }
+  })
 
   const app = new Koa()
   const router = new Router()
@@ -28,6 +35,13 @@ const run = () => {
     const fetch = createFetch()
     const res = await fetch('https://jsonplaceholder.typicode.com/posts')
     ctx.body = res
+  })
+
+  router.get('/undici', async (ctx) => {
+    await undici.fetch('https://jsonplaceholder.typicode.com/posts', {
+      headers: { h: 1 }
+    })
+    ctx.body = 'right'
   })
 
   router.get('/unregister', async (ctx) => {

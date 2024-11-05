@@ -159,6 +159,12 @@ export class DevtoolServer {
     const headerPipe = new RequestHeaderPipe(request.requestHeaders)
     const contentType = headerPipe.getHeader('content-type')
 
+    for (let key in request.requestHeaders){
+      if(typeof request.requestHeaders[key] === 'number'){
+         request.requestHeaders[key] = String(request.requestHeaders[key])
+      }
+    }
+    
     return this.send({
       method: 'Network.requestWillBeSent',
       params: {

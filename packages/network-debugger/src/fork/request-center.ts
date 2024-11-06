@@ -110,6 +110,11 @@ export class RequestCenter {
   }
 
   public registerRequest(request: RequestDetail) {
+    this.requests[request.id] = request
+    this.devtool.requestWillBeSent(request)
+  }
+
+  public initRequest(request: RequestDetail) {
     // replace callFrames' scriptId
     if (request.initiator) {
       request.initiator.stack.callFrames.forEach((frame) => {
@@ -123,7 +128,6 @@ export class RequestCenter {
       })
     }
     this.requests[request.id] = request
-    this.devtool.requestWillBeSent(request)
   }
 
   public updateRequest(request: RequestDetail) {
@@ -148,11 +152,14 @@ export class RequestCenter {
         const message = JSON.parse(data.toString())
         const _message = message as { type: string; data: any }
         switch (_message.type) {
+          case 'initRequest':
           case 'registerRequest':
           case 'updateRequest':
           case 'endRequest':
+            this[_message.type](new RequestDetail(_message.data))
+            break
           case 'responseData':
-            this[_message.type](_message.data)
+            this.responseData(_message.data)
             break
           default:
             {

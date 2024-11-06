@@ -159,12 +159,6 @@ export class DevtoolServer {
     const headerPipe = new RequestHeaderPipe(request.requestHeaders)
     const contentType = headerPipe.getHeader('content-type')
 
-    for (let key in request.requestHeaders){
-      if(typeof request.requestHeaders[key] === 'number'){
-         request.requestHeaders[key] = String(request.requestHeaders[key])
-      }
-    }
-    
     return this.send({
       method: 'Network.requestWillBeSent',
       params: {
@@ -174,7 +168,7 @@ export class DevtoolServer {
         request: {
           url: request.url,
           method: request.method,
-          headers: request.requestHeaders,
+          headers: headerPipe.getData(),
           initialPriority: 'High',
           mixedContentType: 'none',
           ...(request.requestData
@@ -188,7 +182,7 @@ export class DevtoolServer {
         timestamp: this.timestamp,
         wallTime: request.requestStartTime,
         initiator: request.initiator,
-        type: 'Fetch'
+        type: request.isWebSocket() ? 'WebSocket' : 'Fetch'
       }
     })
   }

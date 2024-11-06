@@ -46,6 +46,7 @@ export function fetchProxyFactory(fetchFn: typeof fetch, mainProcess: MainProces
         setCurrentCell(null)
       })
 
+    mainProcess.initRequest(requestDetail)
     mainProcess.registerRequest(requestDetail)
     return result
   }

@@ -37,16 +37,11 @@ function proxyClientRequestFactory(
     mainProcess.endRequest(requestDetail)
   })
 
-  if (requestDetail?.requestHeaders?.['Upgrade'] === 'websocket') {
+  if (requestDetail.isWebSocket()) {
     actualRequest.on('upgrade', (res: IncomingMessage, socket: Socket, head: Buffer) => {
       const originalWrite = socket.write
 
-      // transform http -> websocket
-      requestDetail.url = requestDetail
-        .url!.replace('http://', 'ws://')
-        .replace('https://', 'wss://')
-
-      if (requestDetail.url === 'ws://localhost/') {
+      if (requestDetail.isHiden()) {
         return
       }
 
@@ -203,7 +198,17 @@ export function requestProxyFactory(
     }
 
     // #endregion
-    mainProcess.registerRequest(requestDetail)
+
+    if (requestDetail.isWebSocket()) {
+      requestDetail.url = requestDetail
+        .url!.replace('http://', 'ws://')
+        .replace('https://', 'wss://')
+      mainProcess.initRequest(requestDetail)
+    } else {
+      mainProcess.initRequest(requestDetail)
+      mainProcess.registerRequest(requestDetail)
+    }
+
     const proxyCallback = proxyCallbackFactory(callback, requestDetail, mainProcess)
 
     requestDetail.loadCallFrames()

@@ -112,6 +112,13 @@ export class MainProcess {
     ws.send(JSON.stringify(data))
   }
 
+  public initRequest(request: RequestDetail) {
+    this.send({
+      type: 'initRequest',
+      data: request
+    })
+  }
+
   public registerRequest(request: RequestDetail) {
     const currentCell = getCurrentCell()
     let req = request

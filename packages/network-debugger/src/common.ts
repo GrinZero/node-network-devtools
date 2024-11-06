@@ -13,9 +13,15 @@ export interface CDPCallFrame {
 
 export class RequestDetail {
   id: string
-  constructor() {
-    this.id = generateUUID()
-    this.responseInfo = {}
+  constructor(req?: RequestDetail) {
+    if (req) {
+      this.id = req.id
+      this.responseInfo = req.responseInfo
+      Object.assign(this, req)
+    } else {
+      this.id = generateUUID()
+      this.responseInfo = {}
+    }
   }
 
   loadCallFrames(_stack?: string) {
@@ -38,6 +44,14 @@ export class RequestDetail {
         }
       }
     }
+  }
+
+  isHiden() {
+    return this.isWebSocket() && ['http://localhost/', 'ws://localhost/'].includes(this.url!)
+  }
+
+  isWebSocket() {
+    return this.requestHeaders?.['Upgrade'] === 'websocket'
   }
 
   url?: string

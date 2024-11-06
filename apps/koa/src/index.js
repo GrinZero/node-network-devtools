@@ -90,12 +90,6 @@ const run = () => {
     const res = await axios.get('http://www.baidu.com')
     ctx.body = res.data
   })
-  router.get('/headerWithNumber', async (ctx) => {
-    const res = await axios.get('http://www.baidu.com', {
-      headers: { 'test-timestamp': Date.now() }
-    })
-    ctx.body = res.data
-  })
 
   router.get('/fetch', async (ctx) => {
     const res = await fetch('https://jsonplaceholder.typicode.com/posts')

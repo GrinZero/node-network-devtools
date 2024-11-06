@@ -35,6 +35,7 @@ export const registerDc = (mainProcess: MainProcess) => {
     const asyncId = ayncHooks.executionAsyncId()
     const stack = stackMap.get(asyncId + 1)
     requestDetail.loadCallFrames(stack || '')
+    mainProcess.initRequest(requestDetail)
     mainProcess.registerRequest(requestDetail)
   })
 

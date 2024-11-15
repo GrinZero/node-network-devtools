@@ -156,6 +156,21 @@ function proxyCallbackFactory(
   }
 }
 
+function proxySetCookie(
+  request: ClientRequest,
+  mainProcess: MainProcess,
+  requestDetail: RequestDetail
+) {
+  let originSetHeader = request.setHeader
+  request.setHeader = function (name, val) {
+    if (name.toLowerCase() === 'cookie') {
+      requestDetail.requestHeaders.cookie = val.toString()
+      mainProcess.updateRequest(requestDetail)
+    }
+    return originSetHeader.call(request, name, val)
+  }
+}
+
 export function requestProxyFactory(
   this: any,
   actualRequestHandler: any,
@@ -219,10 +234,12 @@ export function requestProxyFactory(
         options as RequestOptions,
         proxyCallback
       )
+      proxySetCookie(request, mainProcess, requestDetail)
       return proxyClientRequestFactory(request, requestDetail, mainProcess)
     } else {
       // Call actualRequestHandler with 2 parameters
       const request: ClientRequest = actualRequestHandler(options as RequestOptions, proxyCallback)
+      proxySetCookie(request, mainProcess, requestDetail)
       return proxyClientRequestFactory(request, requestDetail, mainProcess)
     }
   }

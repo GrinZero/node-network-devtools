@@ -92,8 +92,8 @@ export class RequestCenter {
     const { id, rawData: _rawData, statusCode, headers } = data
     const request = this.getRequest(id)
     const rawData = Buffer.from(_rawData)
-    request.responseInfo.encodedDataLength = rawData.length
     if (request) {
+      request.responseInfo.encodedDataLength = rawData.length
       this.tryDecompression(rawData, (decodedData) => {
         request.responseData = decodedData
         request.responseInfo.dataLength = decodedData.length
@@ -105,7 +105,7 @@ export class RequestCenter {
     }
   }
 
-  public getRequest(id: string) {
+  public getRequest(id: string): undefined | RequestDetail {
     return this.requests[id]
   }
 

@@ -9,6 +9,8 @@ import { log } from '../utils'
 export interface DevtoolServerInitOptions {
   port: number
   autoOpenDevtool?: boolean
+  onConnect?: () => void
+  onClose?: () => void
 }
 
 const frameId = '517.528'
@@ -41,7 +43,7 @@ export class DevtoolServer {
 
   private listeners: ((error: unknown | null, message?: any) => void)[] = []
   constructor(props: DevtoolServerInitOptions) {
-    const { port, autoOpenDevtool = true } = props
+    const { port, autoOpenDevtool = true, onConnect, onClose } = props
     this.port = port
     this.server = new Server({ port })
     const { server } = this
@@ -53,6 +55,7 @@ export class DevtoolServer {
 
     this.socket = new Promise<[WebSocket]>((resolve) => {
       server.on('connection', (socket) => {
+        onConnect?.()
         this.socket.then((l) => {
           l[0] = socket
         })
@@ -63,6 +66,7 @@ export class DevtoolServer {
         })
         socket.on('close', () => {
           log('devtool closed')
+          onClose?.()
         })
         socket.on('error', (error) => {
           this.listeners.forEach((listener) => listener(error))

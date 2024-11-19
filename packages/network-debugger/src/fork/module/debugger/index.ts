@@ -1,4 +1,4 @@
-import { createPlugin, useHandler } from '../common'
+import { createPlugin, useConnect, useHandler } from '../common'
 export interface ISciprtParsed {
   url: string
   scriptLanguage: string
@@ -23,11 +23,14 @@ export const debuggerPlugin = createPlugin(({ devtool, core }) => {
       }
     })
   })
+
   const scriptList = core.resourceService.getLocalScriptList()
-  scriptList.forEach((script) => {
-    devtool.send({
-      method: 'Debugger.scriptParsed',
-      params: script
+  useConnect(() => {
+    scriptList.forEach((script) => {
+      devtool.send({
+        method: 'Debugger.scriptParsed',
+        params: script
+      })
     })
   })
 })

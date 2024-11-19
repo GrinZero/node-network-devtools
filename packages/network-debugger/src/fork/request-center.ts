@@ -30,7 +30,7 @@ export class RequestCenter {
   private devtool: DevtoolServer
   private server: Server
   private effects: Array<EffectCleaner> = []
-  private listeners: Record<string, DevtoolMessageListener[] | undefined> = {}
+  private listeners: Record<string, Set<DevtoolMessageListener> | undefined> = {}
   private options: RequestCenterInitOptions
   constructor(options: RequestCenterInitOptions) {
     this.options = options
@@ -38,7 +38,16 @@ export class RequestCenter {
     this.requests = requests || {}
     this.devtool = new DevtoolServer({
       port: serverPort,
-      autoOpenDevtool: autoOpenDevtool
+      autoOpenDevtool: autoOpenDevtool,
+      onConnect: () => {
+        const listeners = this.listeners['onConnect']
+        listeners?.forEach((listener) =>
+          listener({
+            data: null,
+            id: 'onConnect'
+          })
+        )
+      }
     })
     this.resourceService = new ResourceService()
     this.devtool.on((error, message) => {
@@ -64,7 +73,9 @@ export class RequestCenter {
     this.server = this.initServer()
   }
 
+  #plugins: PluginInstance[] = []
   public loadPlugins(plugins: PluginInstance[]) {
+    this.#plugins = plugins
     const effects = plugins
       .map((plugin) =>
         plugin({
@@ -78,9 +89,12 @@ export class RequestCenter {
 
   public on(method: string, listener: DevtoolMessageListener) {
     if (!this.listeners[method]) {
-      this.listeners[method] = []
+      this.listeners[method] = new Set()
     }
-    this.listeners[method]!.push(listener)
+    this.listeners[method]!.add(listener)
+    return () => {
+      this.listeners[method]!.delete(listener)
+    }
   }
 
   public responseData(data: {

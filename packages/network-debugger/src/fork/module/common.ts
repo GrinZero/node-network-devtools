@@ -68,7 +68,15 @@ export const useHandler = <T>(type: string, fn: DevtoolMessageListener<T>) => {
   }
   const currentContext = currentPluginContext
   const { core } = currentContext
-  core.on(type, fn)
+  return core.on(type, fn)
+}
+
+export const useConnect = (fn: () => void) => {
+  if (!currentPluginContext) {
+    return
+  }
+  const { core } = currentPluginContext
+  return core.on('onConnect', fn)
 }
 
 /**

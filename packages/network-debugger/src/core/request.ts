@@ -136,6 +136,8 @@ function proxyClientRequestFactory(
         sender.removeAllListeners()
       })
     })
+  } else {
+    mainProcess.registerRequest(requestDetail)
   }
 
   return actualRequest
@@ -156,16 +158,16 @@ function proxyCallbackFactory(
   }
 }
 
-function proxySetCookie(
-  request: ClientRequest,
-  mainProcess: MainProcess,
-  requestDetail: RequestDetail
-) {
+function proxySetHeader(request: ClientRequest, requestDetail: RequestDetail) {
   let originSetHeader = request.setHeader
   request.setHeader = function (name, val) {
-    if (name.toLowerCase() === 'cookie') {
-      requestDetail.requestHeaders.cookie = val.toString()
-      mainProcess.updateRequest(requestDetail)
+    if (Array.isArray(val)) {
+      // TODO: use string[] to send multiple headers with the same name.
+      val.forEach((v) => {
+        requestDetail.requestHeaders[name] = v
+      })
+    } else {
+      requestDetail.requestHeaders[name] = val
     }
     return originSetHeader.call(request, name, val)
   }
@@ -214,6 +216,7 @@ export function requestProxyFactory(
 
     // #endregion
 
+    requestDetail.loadCallFrames()
     if (requestDetail.isWebSocket()) {
       requestDetail.url = requestDetail
         .url!.replace('http://', 'ws://')
@@ -221,12 +224,10 @@ export function requestProxyFactory(
       mainProcess.initRequest(requestDetail)
     } else {
       mainProcess.initRequest(requestDetail)
-      mainProcess.registerRequest(requestDetail)
     }
 
     const proxyCallback = proxyCallbackFactory(callback, requestDetail, mainProcess)
 
-    requestDetail.loadCallFrames()
     if (typeof arg1 === 'string' || arg1 instanceof URL) {
       // Call actualRequestHandler with 3 parameters
       const request: ClientRequest = actualRequestHandler(
@@ -234,12 +235,12 @@ export function requestProxyFactory(
         options as RequestOptions,
         proxyCallback
       )
-      proxySetCookie(request, mainProcess, requestDetail)
+      proxySetHeader(request, requestDetail)
       return proxyClientRequestFactory(request, requestDetail, mainProcess)
     } else {
       // Call actualRequestHandler with 2 parameters
       const request: ClientRequest = actualRequestHandler(options as RequestOptions, proxyCallback)
-      proxySetCookie(request, mainProcess, requestDetail)
+      proxySetHeader(request, requestDetail)
       return proxyClientRequestFactory(request, requestDetail, mainProcess)
     }
   }

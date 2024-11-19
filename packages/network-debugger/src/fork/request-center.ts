@@ -111,10 +111,6 @@ export class RequestCenter {
 
   public registerRequest(request: RequestDetail) {
     this.requests[request.id] = request
-    this.devtool.requestWillBeSent(request)
-  }
-
-  public initRequest(request: RequestDetail) {
     // replace callFrames' scriptId
     if (request.initiator) {
       request.initiator.stack.callFrames.forEach((frame) => {
@@ -127,6 +123,10 @@ export class RequestCenter {
         }
       })
     }
+    this.devtool.requestWillBeSent(request)
+  }
+
+  public initRequest(request: RequestDetail) {
     this.requests[request.id] = request
   }
 

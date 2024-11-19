@@ -1,5 +1,4 @@
-import { createPlugin, useContext, useHandler } from '../common'
-
+import { createPlugin, useHandler } from '../common'
 export interface ISciprtParsed {
   url: string
   scriptLanguage: string

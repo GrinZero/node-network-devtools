@@ -15,8 +15,7 @@ const run = () => {
   const { createFetch } = require('ofetch')
   const undici = require('undici')
 
-  const unregister = register()
-  register({
+  const unregister = register({
     intercept: {
       undici: {
         fetch: true

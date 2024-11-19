@@ -6,6 +6,7 @@ import dts from 'vite-plugin-dts'
 export default defineConfig(({ mode }) => ({
   build: {
     target: 'es2020',
+    sourcemap: mode === 'development',
     outDir: 'dist',
     lib: {
       entry: [resolve(__dirname, 'src/index.ts'), resolve(__dirname, 'src/fork/fork.ts')]

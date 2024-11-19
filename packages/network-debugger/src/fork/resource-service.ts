@@ -74,21 +74,37 @@ export class ResourceService {
     }
   }
 
-  readLastLine(filePath: string, stat: fs.Stats) {
+  /**
+   * @description Read the last lines of the file
+   * @param filePath
+   * @param stat
+   * @param totalLines
+   * @returns string
+   */
+  readLastLine(filePath: string, stat: fs.Stats, totalLines = 1) {
     const fileSize = stat.size
-    // chunkSize
     const chunkSize = Math.min(1024, fileSize)
-    const startPos = fileSize - chunkSize
-    const buffer = Buffer.alloc(chunkSize)
+    let startPos = fileSize - chunkSize
+    let buffer = Buffer.alloc(chunkSize)
+    let lines: string[] = []
 
     const fd = fs.openSync(filePath, 'r')
-    fs.readSync(fd, buffer, 0, chunkSize, startPos)
+
+    while (lines.length < totalLines && startPos >= 0) {
+      fs.readSync(fd, buffer, 0, chunkSize, startPos)
+      const chunk = buffer.toString('utf8')
+      lines = chunk.split('\n').concat(lines)
+      startPos -= chunkSize
+      if (startPos < 0) {
+        startPos = 0
+        buffer = Buffer.alloc(fileSize - startPos)
+      }
+    }
+
     fs.closeSync(fd)
 
-    const chunk = buffer.toString('utf8')
-    const lines = chunk.split('\n')
-
-    return lines[lines.length - 1] ?? ''
+    // Return the last `totalLines` lines
+    return lines.slice(-totalLines).join('\n')
   }
 
   private traverseDirToMap(directoryPath: string, ignoreList: string[] = ['node_modules']) {
@@ -114,8 +130,8 @@ export class ResourceService {
           const scriptIdStr = `${++scriptId}`
           let sourceMapURL = ''
           if (/\.(js|ts)$/.test(resolvedPath)) {
-            const lastChunkCode = this.readLastLine(fullPath, stats)
-            const sourceMapFilePathMatch = lastChunkCode.match(/sourceMappingURL=(.+)$/)?.[1] ?? ''
+            const lastChunkCode = this.readLastLine(fullPath, stats, 2)
+            const sourceMapFilePathMatch = lastChunkCode.match(/sourceMappingURL=(.+)$/m)?.[1] ?? ''
             sourceMapURL = sourceMapFilePathMatch
               ? sourceMapFilePathMatch.startsWith('data:')
                 ? // inline sourcemap

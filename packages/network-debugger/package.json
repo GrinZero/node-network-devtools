@@ -21,7 +21,7 @@
   "scripts": {
     "test": "vitest",
     "build": "vite build",
-    "dev": "vite build --watch"
+    "dev": "vite build --watch --mode development"
   },
   "keywords": [
     "node",

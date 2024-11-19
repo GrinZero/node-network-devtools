@@ -132,7 +132,7 @@ export class ResourceService {
             embedderName: fileUrl.href,
             scriptId: scriptIdStr,
             sourceMapURL: sourceMapURL,
-            hasSourceURL: false
+            hasSourceURL: Boolean(sourceMapURL)
           })
           this.scriptMap.addMapping(url, scriptIdStr)
         }

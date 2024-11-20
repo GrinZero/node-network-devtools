@@ -141,6 +141,19 @@ export class RequestCenter {
   }
 
   public initRequest(request: RequestDetail) {
+    // replace callFrames' scriptId
+    // TODO: 双向绑定 initiator
+    if (request.initiator) {
+      request.initiator.stack.callFrames.forEach((frame) => {
+        const fileUrl = pathToFileURL(frame.url)
+        const scriptId =
+          this.resourceService.getScriptIdByUrl(fileUrl.href) ??
+          this.resourceService.getScriptIdByUrl(frame.url)
+        if (scriptId) {
+          frame.scriptId = scriptId
+        }
+      })
+    }
     this.requests[request.id] = request
   }
 

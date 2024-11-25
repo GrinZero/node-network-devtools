@@ -20,6 +20,8 @@
 
 English | [简体中文](README-zh_CN.md)
 
+[![node-network-devtools](https://snyk.io/advisor/npm-package/node-network-devtools/badge.svg)](https://snyk.io/advisor/npm-package/node-network-devtools)
+
 ## 📖 Introduction
 
 As you can see, the node program opened with the `--inspect` option does not support network tags because it does not proxy user requests.

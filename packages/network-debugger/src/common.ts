@@ -51,7 +51,10 @@ export class RequestDetail {
   }
 
   isWebSocket() {
-    return this.requestHeaders?.['Upgrade'] === 'websocket'
+    return (
+      this.requestHeaders?.['Upgrade'] === 'websocket' ||
+      this.requestHeaders?.['upgrade'] === 'websocket'
+    )
   }
 
   url?: string

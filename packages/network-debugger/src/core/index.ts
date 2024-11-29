@@ -7,7 +7,7 @@ import { PORT, SERVER_PORT } from '../common'
 
 import { RegisterOptions } from '../common'
 import { generateHash } from '../utils'
-import { undiciFetchProxy } from './undici'
+import { undiciFetchProxy, undiciRequestProxy } from './undici'
 
 export function register(props?: RegisterOptions) {
   const {
@@ -24,6 +24,7 @@ export function register(props?: RegisterOptions) {
   } = intercept
 
   const interceptUndiciFetch = isInterceptUndici && isInterceptUndici.fetch
+  const interceptUndiciRequest = isInterceptUndici && isInterceptUndici.request
 
   const key = generateHash(JSON.stringify({ port, serverPort, autoOpenDevtool }))
   const mainProcess = new MainProcess({
@@ -50,6 +51,7 @@ export function register(props?: RegisterOptions) {
   // undici
   // undici fetch
   const unsetUndiciFetch = interceptUndiciFetch ? undiciFetchProxy(mainProcess) : void 0
+  const unsetUndiciRequest = interceptUndiciRequest ? undiciRequestProxy(mainProcess) : void 0
 
   return () => {
     unsetFetchProxy && unsetFetchProxy()

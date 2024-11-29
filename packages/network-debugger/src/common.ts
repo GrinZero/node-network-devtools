@@ -127,6 +127,7 @@ export interface RegisterOptions {
       | false
       | {
           fetch?: false | {}
+          request?: false | {}
           normal?: false | {}
         }
   }

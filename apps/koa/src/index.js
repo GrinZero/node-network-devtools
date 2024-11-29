@@ -18,7 +18,8 @@ const run = () => {
   const unregister = register({
     intercept: {
       undici: {
-        fetch: true
+        fetch: true,
+        request: true
       }
     }
   })
@@ -33,6 +34,14 @@ const run = () => {
   router.get('/ofetch', async (ctx) => {
     const fetch = createFetch()
     const res = await fetch('https://jsonplaceholder.typicode.com/posts')
+    ctx.body = res
+  })
+
+  router.get('/undici/request', async (ctx) => {
+    const res = await undici.request('https://jsonplaceholder.typicode.com/posts', {
+      headers: { h: 1 }
+    })
+    console.log('res', res)
     ctx.body = res
   })
 

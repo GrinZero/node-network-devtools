@@ -1,6 +1,6 @@
-import { fetchProxyFactory } from './fetch'
+import { fetchProxyFactory } from '../fetch'
 import undici from 'undici'
-import { MainProcess } from './fork'
+import { MainProcess } from '../fork'
 
 export const undiciFetchProxy = (mainProcess: MainProcess) => {
   if (!undici.fetch) {

@@ -43,6 +43,9 @@ node network devtools正是为了解决这个问题，它一个允许您使用ch
   - [x] commonjs
   - [x] esmodule
   - [ ] Bun
+- [ ] Undici
+  - [ ] undici.request
+  - [x] undici.fetch
 
 ## 👀 预览
 

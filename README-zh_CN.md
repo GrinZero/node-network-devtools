@@ -34,11 +34,11 @@ node network devtools正是为了解决这个问题，它一个允许您使用ch
     - [x] show stack
     - [x] click to jump
       - [x] base
-      - [ ] Sourcemap
-- [ ] WebSocket
-  - [ ] messages
-  - [ ] payload
-  - [ ] ...
+      - [x] Sourcemap
+- [x] WebSocket
+  - [x] messages
+  - [x] payload
+  - [x] headers
 - [ ] Compatibility
   - [x] commonjs
   - [x] esmodule

@@ -9,7 +9,7 @@ The `RegisterOptions` interface is used to configure the registration options fo
 Here is an example of using `RegisterOptions`:
 
 ```typescript
-import { RegisterOptions } from 'packages/network-debugger/src/common'
+import { RegisterOptions, register } from 'node-network-devtools'
 
 const options: RegisterOptions = {
   port: 5270,
@@ -22,7 +22,7 @@ const options: RegisterOptions = {
 }
 
 // Use options to register the network debugger
-registerNetworkDebugger(options)
+register(options)
 ```
 
 ### port

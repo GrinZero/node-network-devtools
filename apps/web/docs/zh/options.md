@@ -9,7 +9,7 @@
 以下是一个使用 `RegisterOptions` 的示例：
 
 ```typescript
-import { RegisterOptions } from 'packages/network-debugger/src/common'
+import { RegisterOptions, register } from 'node-network-devtools'
 
 const options: RegisterOptions = {
   port: 5270,
@@ -22,7 +22,7 @@ const options: RegisterOptions = {
 }
 
 // 使用 options 进行网络调试器的注册
-registerNetworkDebugger(options)
+register(options)
 ```
 
 ### port

@@ -26,9 +26,12 @@ features:
     details: Install and use it in seconds.
   - title: 🛠️ No Proxy
     details: Free proxy competition and trouble.
+  - title: 😊 WebSocket Support
+    details: Support WebSocket debugging
+  - title: 🔍 Support network request stack tracking
+    details: Support network request stack tracking
+  - title: 📦 Compatibility
+    details: Compatible with low version NodeJs
 
 footer: MIT Licensed | Copyright © 2024 Node Network Devtools Community
 ---
-
-At present, it is in the early stage, although the basic functions are already available, there are still many interesting areas to explore and explore.
-This is an open source project, and we look forward to your participation and contribution if you are interested.

@@ -4,52 +4,48 @@ Node Network Devtools 是一款软集成了 Chrome Devtools 的网络调试工�
 
 ## 安装
 
-<CodeGroup>
-  <CodeGroupItem title="pnpm">
+::: code-tabs
+
+@tab pnpm
 
 ```bash:no-line-numbers
-pnpm add node-network-devtools
+pnpm add -D node-network-devtools
 ```
 
-  </CodeGroupItem>
-
-  <CodeGroupItem title="yarn">
+@tab yarn
 
 ```bash:no-line-numbers
-yarn add node-network-devtools
+yarn add -D node-network-devtools
 ```
 
-  </CodeGroupItem>
-
-  <CodeGroupItem title="npm" active>
+@tab npm
 
 ```bash:no-line-numbers
-npm i node-network-devtools
+npm i -D node-network-devtools
 ```
 
-  </CodeGroupItem>
-</CodeGroup>
+:::
 
 ## 使用
 
 支持 esm 和 commonjs 标准的nodejs程序，只需要在入口文件中引入并调用`register`方法即可。
 
-<CodeGroup>
-  <CodeGroupItem title="typescript">
+::: code-tabs
+
+@tab typescript
 
 ```typescript
 import { register } from 'node-network-devtools'
 register()
 ```
 
-  </CodeGroupItem>
-
-  <CodeGroupItem title="javascript" active>
+@tab javascript
 
 ```javascript
 const { register } = require('node-network-devtools')
 register()
 ```
 
-  </CodeGroupItem>
-</CodeGroup>
+:::
+
+如果需要使用选项，可以前往 [选项](./options.md) 查看详细说明。

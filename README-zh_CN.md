@@ -82,9 +82,3 @@ import { register } from 'node-network-devtools'
 const unregister = register()
 unregister()
 ```
-
-## 📚 文档
-
-如果遇到任何问题，可以尝试清理`request-centre.lock`文件
-
-![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FGrinZero%2Fnode-network-devtools&labelColor=%237fa1f7&countColor=%23697689)

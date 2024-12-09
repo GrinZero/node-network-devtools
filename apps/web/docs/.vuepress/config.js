@@ -6,21 +6,21 @@ export default defineUserConfig({
   lang: 'en-US',
   base: '/node-network-devtools/',
 
-  title: 'VuePress',
-  description: 'My first VuePress Site',
+  title: 'Node Network Devtools',
+  description: `In Chrome devtools debugger NodeJs's Request`,
 
   theme: defaultTheme({
     logo: 'logo.png',
     contributors: true,
-    navbar: ['/', '/get-started'],
+    navbar: ['/', '/options', '/get-started'],
     locales: {
       '/': {
         selectLanguageName: 'English',
-        navbar: ['/', '/get-started']
+        navbar: ['/', '/options', '/get-started']
       },
       '/zh/': {
         selectLanguageName: '简体中文',
-        navbar: ['/zh/', '/zh/get-started']
+        navbar: ['/zh/', '/zh/options', '/zh/get-started']
       }
     }
   }),

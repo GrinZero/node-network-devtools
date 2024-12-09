@@ -4,52 +4,48 @@ Node Network Devtools is a network debugging tool that integrates Chrome Devtool
 
 ## Install
 
-<CodeGroup>
-  <CodeGroupItem title="pnpm">
+::: code-tabs
+
+@tab pnpm
 
 ```bash:no-line-numbers
-pnpm add node-network-devtools
+pnpm add -D node-network-devtools
 ```
 
-  </CodeGroupItem>
-
-  <CodeGroupItem title="yarn">
+@tab yarn
 
 ```bash:no-line-numbers
-yarn add node-network-devtools
+yarn add -D node-network-devtools
 ```
 
-  </CodeGroupItem>
-
-  <CodeGroupItem title="npm" active>
+@tab npm
 
 ```bash:no-line-numbers
-npm i node-network-devtools
+npm i -D node-network-devtools
 ```
 
-  </CodeGroupItem>
-</CodeGroup>
+:::
 
 ## Usage
 
 Node.js programs that support both ESM and CommonJS standards only need to introduce and call the 'register' method in the entry file.
 
-<CodeGroup>
-  <CodeGroupItem title="typescript">
+::: code-tabs
+
+@tab typescript
 
 ```typescript
 import { register } from 'node-network-devtools'
 register()
 ```
 
-  </CodeGroupItem>
-
-  <CodeGroupItem title="javascript" active>
+@tab javascript
 
 ```javascript
 const { register } = require('node-network-devtools')
 register()
 ```
 
-  </CodeGroupItem>
-</CodeGroup>
+:::
+
+If you want to use options, you can go to [options](./options.md) to see the details.

@@ -3,35 +3,41 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="generator" content="VuePress 2.0.0-rc.13" />
+    <meta name="generator" content="VuePress 2.0.0-rc.18" />
     <style>
       :root {
-        --c-bg: #fff;
+        --vp-c-bg: #fff;
       }
-      html.dark {
-        --c-bg: #22272e;
+
+      [data-theme='dark'] {
+        --vp-c-bg: #1b1b1f;
       }
+
       html,
       body {
-        background-color: var(--c-bg);
+        background-color: var(--vp-c-bg);
       }
     </style>
     <script>
       const userMode = localStorage.getItem('vuepress-color-scheme')
       const systemDarkMode =
-        window.matchMedia &&
-        window.matchMedia('(prefers-color-scheme: dark)').matches
-      if (userMode === 'dark' || (userMode !== 'light' && systemDarkMode)) {
-        document.documentElement.classList.toggle('dark', true)
+        'matchMedia' in window
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          : false
+
+      if (userMode === 'light') {
+        document.documentElement.dataset.theme = 'light'
+      } else if (userMode === 'dark' || systemDarkMode) {
+        document.documentElement.dataset.theme = 'dark'
       }
     </script>
     <title>Node Network Devtools</title><meta name="description" content="In Chrome devtools debugger NodeJs's Request">
-    <link rel="preload" href="/node-network-devtools/assets/style-cN4fSA0h.css" as="style"><link rel="stylesheet" href="/node-network-devtools/assets/style-cN4fSA0h.css">
-    <link rel="modulepreload" href="/node-network-devtools/assets/app-B_ZWxiU7.js"><link rel="modulepreload" href="/node-network-devtools/assets/404.html-CI7DypsD.js">
-    <link rel="prefetch" href="/node-network-devtools/assets/index.html-Dm0VopHR.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/get-started.html-Ckw_8kIK.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/preview.html-C5SKkucn.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/index.html-CiLLUb1B.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/get-started.html-B_w2omXn.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/preview.html-tn2pHVf0.js" as="script">
+    <link rel="preload" href="/node-network-devtools/assets/style-DKwDj2dD.css" as="style"><link rel="stylesheet" href="/node-network-devtools/assets/style-DKwDj2dD.css">
+    <link rel="modulepreload" href="/node-network-devtools/assets/app-B7o_GzXG.js"><link rel="modulepreload" href="/node-network-devtools/assets/404.html-XRgvAn4V.js">
+    <link rel="prefetch" href="/node-network-devtools/assets/index.html-_kHfE5FX.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/get-started.html-BrHqZKef.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/options.html-B78EPIqW.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/preview.html-CSRj37gm.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/index.html-CZiYaiPG.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/get-started.html-C2GbVKo7.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/options.html-K4g54ibY.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/preview.html-BLMyE-aE.js" as="script"><link rel="prefetch" href="/node-network-devtools/assets/setupDevtools-7MC2TMWH-CQu3Un1P.js" as="script">
   </head>
   <body>
-    <div id="app"><!--[--><div class="theme-container"><main class="page"><div class="theme-default-content"><h1>404</h1><blockquote>How did we get here?</blockquote><a class="route-link" href="/node-network-devtools/">Take me home</a></div></main></div><!--[--><!----><!--]--><!--]--></div>
-    <script type="module" src="/node-network-devtools/assets/app-B_ZWxiU7.js" defer></script>
+    <div id="app"><!--[--><div class="vp-theme-container" vp-container data-v-b504fc66><main class="page" data-v-b504fc66><div class="theme-default-content" vp-content data-v-b504fc66><h1 data-v-b504fc66>404</h1><blockquote data-v-b504fc66>There&#39;s nothing here.</blockquote><a class="route-link" href="/node-network-devtools/" data-v-b504fc66>Take me home</a></div></main></div><!--[--><!----><!--]--><!--]--></div>
+    <script type="module" src="/node-network-devtools/assets/app-B7o_GzXG.js" defer></script>
   </body>
 </html>

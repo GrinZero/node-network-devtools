@@ -34,7 +34,7 @@ function proxyClientRequestFactory(
   actualRequest.on('error', () => {
     requestDetail.responseStatusCode = 0
     requestDetail.requestEndTime = new Date().getTime()
-    mainProcess.endRequest(requestDetail)
+    mainProcess.sendRequest('endRequest', requestDetail)
   })
 
   if (requestDetail.isWebSocket()) {
@@ -45,7 +45,6 @@ function proxyClientRequestFactory(
         return
       }
 
-      // plugin中处理
       mainProcess.send({
         type: 'Network.webSocketCreated',
         data: {
@@ -137,7 +136,7 @@ function proxyClientRequestFactory(
       })
     })
   } else {
-    mainProcess.registerRequest(requestDetail)
+    mainProcess.sendRequest('registerRequest', requestDetail)
   }
 
   return actualRequest
@@ -221,9 +220,9 @@ export function requestProxyFactory(
       requestDetail.url = requestDetail
         .url!.replace('http://', 'ws://')
         .replace('https://', 'wss://')
-      mainProcess.initRequest(requestDetail)
+      mainProcess.sendRequest('initRequest', requestDetail)
     } else {
-      mainProcess.initRequest(requestDetail)
+      mainProcess.sendRequest('initRequest', requestDetail)
     }
 
     const proxyCallback = proxyCallbackFactory(callback, requestDetail, mainProcess)

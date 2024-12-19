@@ -17,6 +17,11 @@ class ExpectError extends Error {
   }
 }
 
+/**
+ * @flow initRequest -> registerRequest -> updateRequest -> endRequest
+ */
+export type RequestType = 'initRequest' | 'registerRequest' | 'updateRequest' | 'endRequest'
+
 export class MainProcess {
   private ws: Promise<WebSocket>
   private options: RegisterOptions
@@ -112,11 +117,17 @@ export class MainProcess {
     ws.send(JSON.stringify(data))
   }
 
-  public initRequest(request: RequestDetail) {
+  public sendRequest(type: RequestType, request: RequestDetail) {
     this.send({
-      type: 'initRequest',
+      type,
       data: request
     })
+    return this
+  }
+
+  public initRequest(request: RequestDetail) {
+    this.sendRequest('initRequest', request)
+    return this
   }
 
   public registerRequest(request: RequestDetail) {
@@ -131,24 +142,18 @@ export class MainProcess {
       currentCell.request = req
     }
 
-    this.send({
-      type: 'registerRequest',
-      data: req
-    })
+    this.sendRequest('registerRequest', req)
+    return this
   }
 
   public updateRequest(request: RequestDetail) {
-    this.send({
-      type: 'updateRequest',
-      data: request
-    })
+    this.sendRequest('updateRequest', request)
+    return this
   }
 
   public endRequest(request: RequestDetail) {
-    this.send({
-      type: 'endRequest',
-      data: request
-    })
+    this.sendRequest('endRequest', request)
+    return this
   }
 
   public responseRequest(id: string, response: IncomingMessage) {

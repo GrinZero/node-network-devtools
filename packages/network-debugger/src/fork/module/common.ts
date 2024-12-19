@@ -58,7 +58,7 @@ export const createPlugin = (fn: PluginHandler): PluginInstance => {
 }
 
 /**
- * @param type the method name of CDP message
+ * @param type the method name of CDP message / custom type from main process
  * @mark all hook can only be used in createPlugin
  * @returns
  */

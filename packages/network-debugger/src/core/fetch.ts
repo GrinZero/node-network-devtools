@@ -46,8 +46,10 @@ export function fetchProxyFactory(fetchFn: typeof fetch, mainProcess: MainProces
         setCurrentCell(null)
       })
 
-    mainProcess.initRequest(requestDetail)
-    mainProcess.registerRequest(requestDetail)
+    mainProcess
+      .sendRequest('initRequest', requestDetail)
+      .sendRequest('registerRequest', requestDetail)
+
     return result
   }
 }
@@ -69,8 +71,9 @@ function fetchResponseHandlerFactory(requestDetail: RequestDetail, mainProcess: 
         requestDetail.responseInfo.encodedDataLength = responseData.length
       })
       .finally(() => {
-        mainProcess.updateRequest(requestDetail)
-        mainProcess.endRequest(requestDetail)
+        mainProcess
+          .sendRequest('updateRequest', requestDetail)
+          .sendRequest('endRequest', requestDetail)
       })
 
     return response
@@ -81,8 +84,7 @@ function fetchErrorHandlerFactory(requestDetail: RequestDetail, mainProcess: Mai
   return (err: unknown) => {
     requestDetail.requestEndTime = Date.now()
     requestDetail.responseStatusCode = 0
-    mainProcess.updateRequest(requestDetail)
-    mainProcess.endRequest(requestDetail)
+    mainProcess.sendRequest('updateRequest', requestDetail).sendRequest('endRequest', requestDetail)
     throw err
   }
 }

@@ -2,11 +2,9 @@ import { DevtoolServer } from './devtool'
 import { PORT, READY_MESSAGE, RequestDetail } from '../common'
 import zlib from 'node:zlib'
 import { Server } from 'ws'
-import { RequestHeaderPipe } from './pipe'
 import { log } from '../utils'
 import { ResourceService } from './resource-service'
 import { EffectCleaner, PluginInstance } from './module/common'
-import { pathToFileURL } from 'url'
 
 export interface RequestCenterInitOptions {
   port: number
@@ -17,15 +15,14 @@ export interface RequestCenterInitOptions {
 
 /**
  * @param data message data
- * @param id message id
+ * @param id? message id, Only for devtool message
  * @param request? request detail
  */
 export interface DevtoolMessageListener<T = any> {
-  (props: { data: T; request?: RequestDetail; id: string }): void
+  (props: { data: T; request?: RequestDetail; id?: string }): void
 }
 
 export class RequestCenter {
-  public requests: Record<string, RequestDetail>
   public resourceService: ResourceService
   private devtool: DevtoolServer
   private server: Server
@@ -35,7 +32,6 @@ export class RequestCenter {
   constructor(options: RequestCenterInitOptions) {
     this.options = options
     const { serverPort, requests, autoOpenDevtool } = options
-    this.requests = requests || {}
     this.devtool = new DevtoolServer({
       port: serverPort,
       autoOpenDevtool: autoOpenDevtool,
@@ -61,11 +57,9 @@ export class RequestCenter {
         return
       }
 
-      const request = this.getRequest(message.params.requestId)
       listenerList.forEach((listener) => {
         listener({
           data: message.params,
-          request,
           id: message.id
         })
       })
@@ -97,75 +91,6 @@ export class RequestCenter {
     }
   }
 
-  public responseData(data: {
-    id: string
-    rawData: Array<number>
-    statusCode: number
-    headers: Record<string, string>
-  }) {
-    const { id, rawData: _rawData, statusCode, headers } = data
-    const request = this.getRequest(id)
-    const rawData = Buffer.from(_rawData)
-    if (request) {
-      request.responseInfo.encodedDataLength = rawData.length
-      this.tryDecompression(rawData, (decodedData) => {
-        request.responseData = decodedData
-        request.responseInfo.dataLength = decodedData.length
-        request.responseStatusCode = statusCode
-        request.responseHeaders = new RequestHeaderPipe(headers).getData()
-        this.updateRequest(request)
-        this.endRequest(request)
-      })
-    }
-  }
-
-  public getRequest(id: string): undefined | RequestDetail {
-    return this.requests[id]
-  }
-
-  public registerRequest(request: RequestDetail) {
-    this.requests[request.id] = request
-    // replace callFrames' scriptId
-    if (request.initiator) {
-      request.initiator.stack.callFrames.forEach((frame) => {
-        const fileUrl = pathToFileURL(frame.url)
-        const scriptId =
-          this.resourceService.getScriptIdByUrl(fileUrl.href) ??
-          this.resourceService.getScriptIdByUrl(frame.url)
-        if (scriptId) {
-          frame.scriptId = scriptId
-        }
-      })
-    }
-    this.devtool.requestWillBeSent(request)
-  }
-
-  public initRequest(request: RequestDetail) {
-    // replace callFrames' scriptId
-    // TODO: 双向绑定 initiator
-    if (request.initiator) {
-      request.initiator.stack.callFrames.forEach((frame) => {
-        const fileUrl = pathToFileURL(frame.url)
-        const scriptId =
-          this.resourceService.getScriptIdByUrl(fileUrl.href) ??
-          this.resourceService.getScriptIdByUrl(frame.url)
-        if (scriptId) {
-          frame.scriptId = scriptId
-        }
-      })
-    }
-    this.requests[request.id] = request
-  }
-
-  public updateRequest(request: RequestDetail) {
-    this.requests[request.id] = request
-  }
-
-  public endRequest(request: RequestDetail) {
-    request.requestEndTime = request.requestEndTime || Date.now()
-    this.devtool.responseReceived(request)
-  }
-
   public close() {
     this.server.close()
     this.devtool.close()
@@ -179,15 +104,6 @@ export class RequestCenter {
         const message = JSON.parse(data.toString())
         const _message = message as { type: string; data: any }
         switch (_message.type) {
-          case 'initRequest':
-          case 'registerRequest':
-          case 'updateRequest':
-          case 'endRequest':
-            this[_message.type](new RequestDetail(_message.data))
-            break
-          case 'responseData':
-            this.responseData(_message.data)
-            break
           default:
             {
               const listenerList = this.listeners[_message.type]
@@ -196,18 +112,9 @@ export class RequestCenter {
                 break
               }
 
-              if (!_message.data.requestId) {
-                console.warn('requestId is not found', _message)
-                break
-              }
-
-              const id = _message.data.requestId
-              const request = this.getRequest(id)
               listenerList.forEach((listener) => {
                 listener({
-                  data: _message.data,
-                  request,
-                  id
+                  data: _message.data
                 })
               })
             }
@@ -222,33 +129,5 @@ export class RequestCenter {
     })
 
     return server
-  }
-
-  private tryDecompression(data: Buffer, callback: (result: Buffer) => void) {
-    const decompressors: Array<
-      (data: Buffer, cb: (err: Error | null, result: Buffer) => void) => void
-    > = [zlib.gunzip, zlib.inflate, zlib.brotliDecompress]
-
-    let attempts = 0
-
-    const tryNext = () => {
-      if (attempts >= decompressors.length) {
-        callback(data) // 理论上没有压缩
-        return
-      }
-
-      const decompressor = decompressors[attempts]
-      attempts += 1
-
-      decompressor(data, (err, result) => {
-        if (!err) {
-          callback(result)
-        } else {
-          tryNext()
-        }
-      })
-    }
-
-    tryNext()
   }
 }

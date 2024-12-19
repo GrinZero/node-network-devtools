@@ -38,7 +38,7 @@ export class DevtoolServer {
   private port: number
   private browser: ChildProcess | null = null
   private socket: Promise<[WebSocket]>
-  private timestamp = 0
+  public timestamp = 0
   private startTime = Date.now()
 
   private listeners: ((error: unknown | null, message?: any) => void)[] = []
@@ -81,7 +81,7 @@ export class DevtoolServer {
     return this.timestamp
   }
 
-  private updateTimestamp() {
+  public updateTimestamp() {
     this.timestamp = (Date.now() - this.startTime) / 1000
   }
 
@@ -155,104 +155,5 @@ export class DevtoolServer {
 
   public on(listener: (error: unknown | null, message?: any) => void) {
     this.listeners.push(listener)
-  }
-
-  async requestWillBeSent(request: RequestDetail) {
-    this.updateTimestamp()
-
-    const headerPipe = new RequestHeaderPipe(request.requestHeaders)
-    const contentType = headerPipe.getHeader('content-type')
-
-    return this.send({
-      method: 'Network.requestWillBeSent',
-      params: {
-        requestId: request.id,
-        frameId,
-        loaderId,
-        request: {
-          url: request.url,
-          method: request.method,
-          headers: headerPipe.getData(),
-          initialPriority: 'High',
-          mixedContentType: 'none',
-          ...(request.requestData
-            ? {
-                postData: contentType?.includes('application/json')
-                  ? JSON.stringify(request.requestData)
-                  : request.requestData
-              }
-            : {})
-        },
-        timestamp: this.timestamp,
-        wallTime: request.requestStartTime,
-        initiator: request.initiator,
-        type: request.isWebSocket() ? 'WebSocket' : 'Fetch'
-      }
-    })
-  }
-
-  async responseReceived(request: RequestDetail) {
-    this.updateTimestamp()
-    const headers = new RequestHeaderPipe(request.responseHeaders)
-
-    const contentType = headers.getHeader('content-type') || 'text/plain; charset=utf-8'
-
-    const type = (() => {
-      if (/image/.test(contentType)) {
-        return 'Image'
-      }
-      if (/javascript/.test(contentType)) {
-        return 'Script'
-      }
-      if (/css/.test(contentType)) {
-        return 'Stylesheet'
-      }
-      if (/html/.test(contentType)) {
-        return 'Document'
-      }
-      return 'Other'
-    })()
-
-    this.send({
-      method: 'Network.responseReceived',
-      params: {
-        requestId: request.id,
-        frameId,
-        loaderId,
-        timestamp: this.timestamp,
-        type,
-        response: {
-          url: request.url,
-          status: request.responseStatusCode,
-          statusText: request.responseStatusCode === 200 ? 'OK' : '',
-          headers: request.responseHeaders,
-          connectionReused: false,
-          encodedDataLength: request.responseInfo.encodedDataLength,
-          charset: 'utf-8',
-          mimeType: toMimeType(contentType)
-        }
-      }
-    })
-
-    this.updateTimestamp()
-    this.send({
-      method: 'Network.dataReceived',
-      params: {
-        requestId: request.id,
-        timestamp: this.timestamp,
-        dataLength: request.responseInfo.dataLength,
-        encodedDataLength: request.responseInfo.encodedDataLength
-      }
-    })
-
-    this.updateTimestamp()
-    this.send({
-      method: 'Network.loadingFinished',
-      params: {
-        requestId: request.id,
-        timestamp: this.timestamp,
-        encodedDataLength: request.responseInfo.encodedDataLength
-      }
-    })
   }
 }

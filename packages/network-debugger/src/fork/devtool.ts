@@ -103,20 +103,30 @@ export class DevtoolServer {
         wait: true
       })
 
-      if (process.platform !== 'darwin') {
+      cdpConnect: if (process.platform !== 'darwin') {
         const json = await new Promise<{ webSocketDebuggerUrl: string; id: string }[]>(
           (resolve) => {
+            let count = 0
             let stop = setInterval(async () => {
+              if (count > 5) {
+                clearInterval(stop)
+                resolve([])
+              }
               try {
+                count++
                 resolve((await fetch(`http://localhost:${REMOTE_DEBUGGER_PORT}/json`)).json())
                 clearInterval(stop)
               } catch {
-                log('waiting for chrome to open')
+                // ignore
               }
             }, 500)
           }
         )
-        const { id, webSocketDebuggerUrl } = json[0]
+        const [data] = json
+        if (!data) {
+          break cdpConnect
+        }
+        const { id, webSocketDebuggerUrl } = data
         const debuggerWs = new WebSocket(webSocketDebuggerUrl)
 
         debuggerWs.on('open', () => {

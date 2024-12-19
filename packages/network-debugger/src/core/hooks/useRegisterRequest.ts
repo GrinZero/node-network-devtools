@@ -14,7 +14,7 @@ export const useRegisterRequest: RegisterRequestHook = (pipe) => {
 
   cell.pipes.push({
     pipe,
-    type: 'regsiter'
+    type: 'registerRequest'
   })
 
   return

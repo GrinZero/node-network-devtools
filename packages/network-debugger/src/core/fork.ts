@@ -118,41 +118,21 @@ export class MainProcess {
   }
 
   public sendRequest(type: RequestType, request: RequestDetail) {
-    this.send({
-      type,
-      data: request
-    })
-    return this
-  }
-
-  public initRequest(request: RequestDetail) {
-    this.sendRequest('initRequest', request)
-    return this
-  }
-
-  public registerRequest(request: RequestDetail) {
     const currentCell = getCurrentCell()
     let req = request
     if (currentCell) {
       currentCell.request = req
-      const pipes = currentCell.pipes.filter((p) => p.type === 'regsiter').map((p) => p.pipe)
+      const pipes = currentCell.pipes.filter((p) => p.type === type).map((p) => p.pipe)
       pipes.forEach((pipe) => {
         req = pipe(req)
       })
       currentCell.request = req
     }
 
-    this.sendRequest('registerRequest', req)
-    return this
-  }
-
-  public updateRequest(request: RequestDetail) {
-    this.sendRequest('updateRequest', request)
-    return this
-  }
-
-  public endRequest(request: RequestDetail) {
-    this.sendRequest('endRequest', request)
+    this.send({
+      type,
+      data: request
+    })
     return this
   }
 

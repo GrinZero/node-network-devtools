@@ -1,3 +1,6 @@
+/**
+ * @deprecated information is not complete
+ */
 import { ClientRequest, IncomingMessage } from 'http'
 import { MainProcess } from './fork'
 import * as dc from 'node:diagnostics_channel'

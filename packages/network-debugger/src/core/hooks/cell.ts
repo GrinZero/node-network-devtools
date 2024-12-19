@@ -1,4 +1,5 @@
 import { type RequestDetail } from '../../common'
+import { RequestType } from '../fork'
 
 export interface Pipe<T = RequestDetail> {
   (req: T): T
@@ -8,7 +9,7 @@ export interface Cell {
   request: RequestDetail
   pipes: Array<{
     pipe: Pipe<RequestDetail>
-    type: 'regsiter'
+    type: RequestType
   }>
   /**
    * @default false

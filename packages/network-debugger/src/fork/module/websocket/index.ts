@@ -7,6 +7,7 @@ import {
   stringifyNestedObj
 } from '../../../utils'
 import { createPlugin, useHandler } from '../common'
+import { NetworkPluginCore } from '../network'
 
 export interface WebSocketFrameSent {
   requestId: string
@@ -29,10 +30,16 @@ export interface WebSocketCreated {
   response: IncomingMessage
 }
 
-export const websocketPlugin = createPlugin(({ devtool }) => {
+export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => {
+  const networkPlugin = core.usePlugin<NetworkPluginCore>('network')
+
   useHandler<WebSocketCreated>(
     'Network.webSocketCreated',
-    async ({ request, data: { response } }) => {
+    async ({ data: { response, requestId } }) => {
+      if (!requestId) {
+        return
+      }
+      const request = networkPlugin.getRequest(requestId)
       if (!request) {
         return
       }
@@ -99,8 +106,8 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
     })
   })
 
-  useHandler<WebSocketFrameSent>('Network.webSocketFrameReceived', async ({ request, data }) => {
-    if (!request) {
+  useHandler<WebSocketFrameSent>('Network.webSocketFrameReceived', async ({ data }) => {
+    if (!data.requestId) {
       return
     }
     await devtool.send({
@@ -113,14 +120,14 @@ export const websocketPlugin = createPlugin(({ devtool }) => {
     })
   })
 
-  useHandler<WebSocketFrameSent>('Network.webSocketClosed', async ({ request }) => {
-    if (!request) {
+  useHandler<WebSocketFrameSent>('Network.webSocketClosed', async ({ data }) => {
+    if (!data.requestId) {
       return
     }
     await devtool.send({
       method: 'Network.webSocketClosed',
       params: {
-        requestId: request.id,
+        requestId: data.requestId,
         timestamp: getTimestamp()
       }
     })

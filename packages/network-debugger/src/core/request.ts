@@ -4,7 +4,7 @@ import { RequestDetail } from '../common'
 import { getTimestamp } from '../utils'
 import { MainProcess } from './fork'
 import { BINARY_TYPES } from './ws/constants'
-import { Receiver } from './ws/reveiver'
+import { Receiver } from './ws/receiver'
 
 export interface RequestFn {
   (options: RequestOptions | string | URL, callback?: (res: IncomingMessage) => void): ClientRequest
@@ -38,14 +38,14 @@ function proxyClientRequestFactory(
   })
 
   if (requestDetail.isWebSocket()) {
-    actualRequest.on('upgrade', (res: IncomingMessage, socket: Socket, head: Buffer) => {
+    actualRequest.on('upgrade', async (res: IncomingMessage, socket: Socket, head: Buffer) => {
       const originalWrite = socket.write
 
       if (requestDetail.isHiden()) {
         return
       }
 
-      mainProcess.send({
+      await mainProcess.send({
         type: 'Network.webSocketCreated',
         data: {
           requestId: requestDetail.id,

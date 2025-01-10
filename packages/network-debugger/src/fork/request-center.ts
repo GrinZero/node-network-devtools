@@ -1,10 +1,9 @@
 import { DevtoolServer } from './devtool'
 import { PORT, READY_MESSAGE, RequestDetail } from '../common'
-import zlib from 'node:zlib'
 import { Server } from 'ws'
 import { log } from '../utils'
 import { ResourceService } from './resource-service'
-import { EffectCleaner, PluginInstance } from './module/common'
+import { PluginInstance } from './module/common'
 
 export interface RequestCenterInitOptions {
   port: number
@@ -26,7 +25,6 @@ export class RequestCenter {
   public resourceService: ResourceService
   private devtool: DevtoolServer
   private server: Server
-  private effects: Array<EffectCleaner> = []
   private listeners: Record<string, Set<DevtoolMessageListener> | undefined> = {}
   private options: RequestCenterInitOptions
   constructor(options: RequestCenterInitOptions) {
@@ -67,18 +65,29 @@ export class RequestCenter {
     this.server = this.initServer()
   }
 
-  #plugins: PluginInstance[] = []
-  public loadPlugins(plugins: PluginInstance[]) {
+  #plugins: PluginInstance<any>[] = []
+  #pluginOutputs?: Map<string, any>
+  public loadPlugins(plugins: PluginInstance<any>[]) {
     this.#plugins = plugins
-    const effects = plugins
-      .map((plugin) =>
-        plugin({
-          devtool: this.devtool,
-          core: this
-        })
-      )
-      .filter(Boolean) as Array<EffectCleaner>
-    this.effects.push(...effects)
+    this.#pluginOutputs = new Map()
+
+    plugins.forEach((plugin) => {
+      const output = plugin({
+        devtool: this.devtool,
+        core: this,
+        plugins: this.#plugins
+      })
+      this.#pluginOutputs!.set(plugin.id, output)
+    })
+  }
+
+  public usePlugin<T = null>(id: string) {
+    if (!this.#pluginOutputs) {
+      return null as T
+    }
+
+    const output = this.#pluginOutputs.get(id)
+    return output as T
   }
 
   public on(method: string, listener: DevtoolMessageListener) {
@@ -94,7 +103,6 @@ export class RequestCenter {
   public close() {
     this.server.close()
     this.devtool.close()
-    this.effects.forEach((effect) => effect())
   }
 
   private initServer() {

@@ -11,7 +11,7 @@ export interface ScriptSourceData {
   scriptId: string
 }
 
-export const debuggerPlugin = createPlugin(({ devtool, core }) => {
+export const debuggerPlugin = createPlugin('debugger', ({ devtool, core }) => {
   useHandler<ScriptSourceData>('Debugger.getScriptSource', ({ id, data }) => {
     if (!id) {
       return

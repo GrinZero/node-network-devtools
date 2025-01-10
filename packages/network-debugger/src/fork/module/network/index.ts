@@ -8,7 +8,7 @@ import { toMimeType } from '../../devtool'
 const frameId = '517.528'
 const loaderId = '517.529'
 
-export const networkPlugin = createPlugin(({ devtool, core }) => {
+export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
   const requests: Record<string, RequestDetail> = {}
 
   const getRequest = (id: string) => requests[id]
@@ -214,4 +214,10 @@ export const networkPlugin = createPlugin(({ devtool, core }) => {
       })
     }
   })
+
+  return {
+    getRequest
+  }
 })
+
+export type NetworkPluginCore = ReturnType<typeof networkPlugin>

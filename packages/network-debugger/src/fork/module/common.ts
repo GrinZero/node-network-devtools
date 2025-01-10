@@ -17,11 +17,14 @@ const resetPluginContext = () => (currentPluginContext = null)
 export interface CoreCotext {
   devtool: DevtoolServer
   core: RequestCenter
+  plugins: PluginInstance<any>[]
 }
 
-export type EffectCleaner = () => void
-export type PluginHandler = (props: CoreCotext) => EffectCleaner | void
-export type PluginInstance = (props: CoreCotext) => EffectCleaner | void
+export type PluginHandler<T> = (props: CoreCotext) => T
+export type PluginInstance<T> = {
+  (props: CoreCotext): T
+  id: string
+}
 
 /**
  * @description create a plugin for devtool
@@ -48,13 +51,15 @@ export type PluginInstance = (props: CoreCotext) => EffectCleaner | void
  * ```
  * @returns PluginInstance
  */
-export const createPlugin = (fn: PluginHandler): PluginInstance => {
-  return (props: CoreCotext) => {
+export const createPlugin = <T>(id: string, fn: PluginHandler<T>) => {
+  const plugin: Omit<PluginInstance<T>, 'id'> = (props: CoreCotext) => {
     initPluginContext(props.core, props.devtool)
-    const effectDestroy = fn(props)
+    const output = fn(props)
     resetPluginContext()
-    return effectDestroy
+    return output
   }
+  const instance = Object.assign(plugin, { id })
+  return instance as PluginInstance<T>
 }
 
 /**

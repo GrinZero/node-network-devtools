@@ -3,13 +3,19 @@ import { RequestDetail } from '../../../common'
 import { BodyTransformer, RequestHeaderPipe } from '../../pipe'
 import { createPlugin, useHandler } from '../common'
 import zlib from 'node:zlib'
-import { toMimeType } from '../../devtool'
+import { ResourceService } from '../../resource-service'
 
 const frameId = '517.528'
 const loaderId = '517.529'
 
+export const toMimeType = (contentType: string) => {
+  return contentType.split(';')[0] || 'text/plain'
+}
+
 export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
   const requests: Record<string, RequestDetail> = {}
+
+  const resourceService = new ResourceService()
 
   const getRequest = (id: string) => requests[id]
   const updateRequest = (request: RequestDetail) => {
@@ -129,8 +135,8 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
       request.initiator.stack.callFrames.forEach((frame) => {
         const fileUrl = pathToFileURL(frame.url)
         const scriptId =
-          core.resourceService.getScriptIdByUrl(fileUrl.href) ??
-          core.resourceService.getScriptIdByUrl(frame.url)
+          resourceService.getScriptIdByUrl(fileUrl.href) ??
+          resourceService.getScriptIdByUrl(frame.url)
         if (scriptId) {
           frame.scriptId = scriptId
         }
@@ -148,8 +154,8 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
       request.initiator.stack.callFrames.forEach((frame) => {
         const fileUrl = pathToFileURL(frame.url)
         const scriptId =
-          core.resourceService.getScriptIdByUrl(fileUrl.href) ??
-          core.resourceService.getScriptIdByUrl(frame.url)
+          resourceService.getScriptIdByUrl(fileUrl.href) ??
+          resourceService.getScriptIdByUrl(frame.url)
         if (scriptId) {
           frame.scriptId = scriptId
         }
@@ -216,7 +222,8 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
   })
 
   return {
-    getRequest
+    getRequest,
+    resourceService
   }
 })
 

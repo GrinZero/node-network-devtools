@@ -1,4 +1,5 @@
 import { createPlugin, useConnect, useHandler } from '../common'
+import { NetworkPluginCore } from '../network'
 export interface ISciprtParsed {
   url: string
   scriptLanguage: string
@@ -12,12 +13,14 @@ export interface ScriptSourceData {
 }
 
 export const debuggerPlugin = createPlugin('debugger', ({ devtool, core }) => {
+  const networkPlugin = core.usePlugin<NetworkPluginCore>('network')
+
   useHandler<ScriptSourceData>('Debugger.getScriptSource', ({ id, data }) => {
     if (!id) {
       return
     }
     const { scriptId } = data
-    const scriptSource = core.resourceService.getScriptSource(scriptId)
+    const scriptSource = networkPlugin.resourceService.getScriptSource(scriptId)
     devtool.send({
       id: id,
       method: 'Debugger.getScriptSourceResponse',
@@ -27,7 +30,7 @@ export const debuggerPlugin = createPlugin('debugger', ({ devtool, core }) => {
     })
   })
 
-  const scriptList = core.resourceService.getLocalScriptList()
+  const scriptList = networkPlugin.resourceService.getLocalScriptList()
   useConnect(() => {
     scriptList.forEach((script) => {
       devtool.send({

@@ -2,7 +2,6 @@ import { DevtoolServer } from './devtool'
 import { PORT, READY_MESSAGE, RequestDetail } from '../common'
 import { Server } from 'ws'
 import { log } from '../utils'
-import { ResourceService } from './resource-service'
 import { PluginInstance } from './module/common'
 
 export interface RequestCenterInitOptions {
@@ -22,7 +21,6 @@ export interface DevtoolMessageListener<T = any> {
 }
 
 export class RequestCenter {
-  public resourceService: ResourceService
   private devtool: DevtoolServer
   private server: Server
   private listeners: Record<string, Set<DevtoolMessageListener> | undefined> = {}
@@ -43,7 +41,6 @@ export class RequestCenter {
         )
       }
     })
-    this.resourceService = new ResourceService()
     this.devtool.on((error, message) => {
       if (error) {
         log(error)

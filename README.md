@@ -21,6 +21,7 @@
 English | [简体中文](README-zh_CN.md)
 
 [![node-network-devtools](https://snyk.io/advisor/npm-package/node-network-devtools/badge.svg)](https://snyk.io/advisor/npm-package/node-network-devtools)
+![npm downloads](https://img.shields.io/npm/dm/node-network-devtools?label=npm%20downloads)
 
 ## 📖 Introduction
 

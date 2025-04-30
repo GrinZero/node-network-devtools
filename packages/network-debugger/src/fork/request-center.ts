@@ -27,7 +27,7 @@ export class RequestCenter {
   private options: RequestCenterInitOptions
   constructor(options: RequestCenterInitOptions) {
     this.options = options
-    const { serverPort, requests, autoOpenDevtool } = options
+    const { serverPort, autoOpenDevtool } = options
     this.devtool = new DevtoolServer({
       port: serverPort,
       autoOpenDevtool: autoOpenDevtool,
@@ -113,7 +113,7 @@ export class RequestCenter {
             {
               const listenerList = this.listeners[_message.type]
               if (!listenerList) {
-                console.warn('unknown message type', _message.type)
+                // console.warn('unknown message type', _message.type)
                 break
               }
 

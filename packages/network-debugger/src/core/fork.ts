@@ -67,6 +67,7 @@ export class MainProcess {
     })
     this.ws
       .then((ws) => {
+        this.healthCheck()
         ws.on('error', (e) => {
           console.error('MainProcess Socket Error: ', e)
         })
@@ -134,6 +135,20 @@ export class MainProcess {
       data: request
     })
     return this
+  }
+
+  private async healthCheck() {
+    const ws = await this.ws
+    const ping = () => {
+      ws.send(
+        JSON.stringify({
+          type: 'health',
+          data: {}
+        })
+      )
+    }
+    ping()
+    setInterval(ping, 2000)
   }
 
   public responseRequest(id: string, response: IncomingMessage) {

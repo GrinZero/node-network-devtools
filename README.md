@@ -50,10 +50,10 @@ Node v22.6.0 experimentally supports network debugging. This library supports us
 - [ ] Compatibility
   - [x] commonjs
   - [x] esmodule
-  - [ ] Deno -- Maybe nice to PR to Deno
 - [ ] Undici
   - [ ] undici.request
   - [x] undici.fetch
+- [ ] Complete unit testing of oneself
 
 ## 👀 Preview
 

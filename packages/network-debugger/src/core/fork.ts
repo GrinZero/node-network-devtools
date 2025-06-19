@@ -142,7 +142,7 @@ export class MainProcess {
     const ping = () => {
       ws.send(
         JSON.stringify({
-          type: 'health',
+          type: 'healthcheck',
           data: {}
         })
       )

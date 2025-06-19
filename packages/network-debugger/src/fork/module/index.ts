@@ -5,5 +5,5 @@ import { websocketPlugin } from './websocket'
 import { healthPlugin } from './health'
 
 export const loadPlugin = (instance: RequestCenter) => {
-  instance.loadPlugins([networkPlugin, debuggerPlugin, websocketPlugin, healthPlugin])
+  instance.loadPlugins([networkPlugin, debuggerPlugin, websocketPlugin])
 }

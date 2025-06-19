@@ -1,6 +1,6 @@
 {
   "name": "node-network-devtools",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Inspecting Node.js's Network with Chrome DevTools",
   "homepage": "https://grinzero.github.io/node-network-devtools/",
   "main": "./dist/index.js",
@@ -57,7 +57,9 @@
     "vitest": "^2.0.3"
   },
   "dependencies": {
+    "bufferutil": "^4.0.9",
     "iconv-lite": "^0.6.3",
+    "inspector": "^0.5.0",
     "open": "^8.4.2",
     "ws": "^8.17.0"
   },

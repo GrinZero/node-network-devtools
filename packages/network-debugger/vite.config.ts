@@ -39,7 +39,9 @@ export default defineConfig(({ mode }) => ({
         'node:buffer',
         'stream',
         'net',
-        'undici'
+        'undici',
+        'node:inspector',
+        'bufferutil'
       ],
       output: {
         globals: {
@@ -67,7 +69,9 @@ export default defineConfig(({ mode }) => ({
           'node:tls': 'node_tls',
           'node:stream': 'node_stream',
           'node:querystring': 'node_querystring',
-          'node:crypto': 'node_crypto'
+          'node:crypto': 'node_crypto',
+          'node:inspector': 'node_inspector',
+          bufferutil: 'bufferutil'
         }
       }
     }

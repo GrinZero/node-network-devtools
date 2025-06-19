@@ -9,7 +9,12 @@ export interface DevtoolMessageResponse {
   method?: string
 }
 
-export type DevtoolMessage = DevtoolMessageRequest | DevtoolMessageResponse
+export interface DevtoolErrorResponse {
+  id: string
+  error: { code: number; message?: string }
+}
+
+export type DevtoolMessage = DevtoolMessageRequest | DevtoolMessageResponse | DevtoolErrorResponse
 
 export class BaseDevtoolServer {
   public timestamp = 0

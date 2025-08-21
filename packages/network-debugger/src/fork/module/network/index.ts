@@ -22,6 +22,7 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
     requests[request.id] = request
   }
   const endRequest = (request: RequestDetail) => {
+    requests[request.id] = request
     request.requestEndTime = request.requestEndTime || Date.now()
     devtool.updateTimestamp()
     const headers = new RequestHeaderPipe(request.responseHeaders)

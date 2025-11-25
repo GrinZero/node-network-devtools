@@ -5,9 +5,9 @@ export const healthPlugin = createPlugin('health', ({ devtool }) => {
     process.exit(0)
   }
 
-  let id = setTimeout(exitProcess, 5000)
+  let id = setTimeout(exitProcess, 10000)
   useHandler('healthcheck', () => {
     clearTimeout(id)
-    id = setTimeout(exitProcess, 5000)
+    id = setTimeout(exitProcess, 10000)
   })
 })

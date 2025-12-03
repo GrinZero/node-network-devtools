@@ -40,3 +40,10 @@ yarn-error.log*
 # Vuepress
 .cache
 .temp
+
+
+# gemini-cli settings
+.gemini/
+
+# GitHub App credentials
+gha-creds-*.json

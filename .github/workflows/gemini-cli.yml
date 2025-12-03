@@ -1,0 +1,17 @@
+name: Run gemini-cli
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: write-all
+
+jobs:
+  gemini-code-review:
+    runs-on: ubuntu-latest
+    if: |
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '/gemini-cli')
+    steps:
+      - name: Run Gemini CLI
+        uses: google-github-actions/run-gemini-cli@v0.1.16

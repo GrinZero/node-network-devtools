@@ -91,4 +91,8 @@ const unregister = register()
 unregister()
 ```
 
+## ⚙️ Configuration Options
+
+The `register` function accepts an optional `RegisterOptions` object to customize its behavior. For a complete list of available options and their detailed descriptions, please refer to the [Options Documentation](apps/web/docs/options.md).
+
 ![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FGrinZero%2Fnode-network-devtools&labelColor=%237fa1f7&countColor=%23697689)

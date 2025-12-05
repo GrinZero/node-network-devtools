@@ -43,23 +43,86 @@ register(options)
 
 ### intercept
 
-- **Description**: Options for intercepting specific packets. If set to `false`, the packet will not be intercepted.
+- **Description**: Options for intercepting different types of requests.
+  If a property is set to `false`, that specific type of request will not be intercepted.
+  By default, all are intercepted if not explicitly set.
 
 #### intercept.fetch
 
+- **Description**: Whether to intercept `fetch` requests.
 - **Default value**: `true`
-
-- **Description**: Whether to intercept globalThis.fetch
 
 #### intercept.normal
 
+- **Description**: Whether to intercept `http/https` requests.
 - **Default value**: `true`
-
-- **Description**: Whether to intercept requests made by http/https basic packages
 
 #### intercept.undici
 
+- **Description**: Options for intercepting `undici` requests. Set to `false` to disable all `undici` interception. Otherwise, configure specific `undici` interception options.
 - **Default value**: `false`
 - **Options**:
-  - `fetch`: `false` or `{}`, not intercepted by default. Used to intercept `undici.fetch`
-  - `normal`: `false` or `{}`, not intercepted by default. Used to intercept `undici.request`
+  - `fetch`: Whether to intercept `undici`'s `fetch` requests. Defaults to `false`.
+  - `normal`: Whether to intercept `undici`'s normal requests. Defaults to `false`.
+
+## ConnectOptions
+
+The `ConnectOptions` interface configures options for connecting to the network debugger.
+
+### port
+
+- **Description**: Main process port
+- **Default value**: `5270`
+
+## UnregisterOptions
+
+The `UnregisterOptions` interface configures options for unregistering the network debugger.
+
+### port
+
+- **Description**: Main process port
+- **Default value**: `5270`
+
+## SetRequestInterceptorOptions
+
+The `SetRequestInterceptorOptions` interface configures options for setting a request interceptor.
+
+### port
+
+- **Description**: Main process port
+- **Default value**: `5270`
+
+### request
+
+- **Description**: A function to intercept and modify outgoing requests.
+
+## SetResponseInterceptorOptions
+
+The `SetResponseInterceptorOptions` interface configures options for setting a response interceptor.
+
+### port
+
+- **Description**: Main process port
+- **Default value**: `5270`
+
+### response
+
+- **Description**: A function to intercept and modify incoming responses.
+
+## RemoveRequestInterceptorOptions
+
+The `RemoveRequestInterceptorOptions` interface configures options for removing a request interceptor.
+
+### port
+
+- **Description**: Main process port
+- **Default value**: `5270`
+
+## RemoveResponseInterceptorOptions
+
+The `RemoveResponseInterceptorOptions` interface configures options for removing a response interceptor.
+
+### port
+
+- **Description**: Main process port
+- **Default value**: `5270`

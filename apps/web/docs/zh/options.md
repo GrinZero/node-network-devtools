@@ -43,23 +43,95 @@ register(options)
 
 ### intercept
 
-- **描述**: 拦截特定数据包的选项。如果设置为 `false`，则不会拦截该数据包。
+- **描述**: 用于拦截不同类型请求的选项。
+  如果某个属性设置为 `false`，则不会拦截该特定类型的请求。
+  默认情况下，如果未明确设置，则全部拦截。
 
 #### intercept.fetch
 
+- **描述**: 是否拦截 `fetch` 请求。
 - **默认值**: `true`
-
-- **描述**: 是否拦截 globalThis.fetch
 
 #### intercept.normal
 
+- **描述**: 是否拦截 `http/https` 请求。
 - **默认值**: `true`
-
-- **描述**: 是否拦截 http/https 基础包发出的请求
 
 #### intercept.undici
 
+- **描述**: `undici` 请求的拦截选项。设置为 `false` 以禁用所有 `undici` 拦截。否则，请配置特定的 `undici` 拦截选项。
 - **默认值**: `false`
 - **选项**:
-  - `fetch`: `false` 或 `{}`，默认不拦截。用于拦截`undici.fetch`
-  - `normal`: `false` 或 `{}`，默认不拦截。用于拦截`undici.request`
+  - `fetch`: 是否拦截 `undici` 的 `fetch` 请求。默认为 `false`。
+  - `normal`: 是否拦截 `undici` 的普通请求。默认为 `false`。
+
+## ConnectOptions
+
+`ConnectOptions` 接口配置连接到网络调试器的选项。
+
+### port
+
+- **描述**: 主进程端口
+- **默认值**: `5270`
+
+## UnregisterOptions
+
+`UnregisterOptions` 接口配置取消注册网络调试器的选项。
+
+### port
+
+- **描述**: 主进程端口
+- **默认值**: `5270`
+
+## SendMessageOptions
+
+`SendMessageOptions` 接口配置发送消息的选项。
+
+### port
+
+- **描述**: 主进程端口
+- **默认值**: `5270`
+
+## SetRequestInterceptorOptions
+
+`SetRequestInterceptorOptions` 接口配置设置请求拦截器的选项。
+
+### port
+
+- **描述**: 主进程端口
+- **默认值**: `5270`
+
+### request
+
+- **描述**: 一个用于拦截和修改传出请求的函数。
+
+## SetResponseInterceptorOptions
+
+`SetResponseInterceptorOptions` 接口配置设置响应拦截器的选项。
+
+### port
+
+- **描述**: 主进程端口
+- **默认值**: `5270`
+
+### response
+
+- **描述**: 一个用于拦截和修改传入响应的函数。
+
+## RemoveRequestInterceptorOptions
+
+`RemoveRequestInterceptorOptions` 接口配置移除请求拦截器的选项。
+
+### port
+
+- **描述**: 主进程端口
+- **默认值**: `5270`
+
+## RemoveResponseInterceptorOptions
+
+`RemoveResponseInterceptorOptions` 接口配置移除响应拦截器的选项。
+
+### port
+
+- **描述**: 主进程端口
+- **默认值**: `5270`

@@ -111,26 +111,108 @@ export interface RegisterOptions {
   autoOpenDevtool?: boolean
 
   /**
-   * @description The option to intercept a certain packet.
-   *   If set false, the packet will not be intercepted.
+   * @description Options for intercepting different types of requests.
+   *   If a property is set to `false`, that specific type of request will not be intercepted.
+   *   By default, all are intercepted if not explicitly set.
    */
   intercept?: {
     /**
+     * @description Whether to intercept `fetch` requests.
      * @default true
      */
     fetch?: boolean
     /**
+     * @description Whether to intercept `http/https` requests.
      * @default true
      */
     normal?: boolean
     /**
+     * @description Options for intercepting `undici` requests.
+     *   Set to `false` to disable all undici interception.
+     *   Otherwise, configure specific undici interception options.
      * @default false
      */
     undici?:
       | false
       | {
+          /**
+           * @description Whether to intercept `undici`'s `fetch` requests.
+           * @default false
+           */
           fetch?: false | {}
+          /**
+           * @description Whether to intercept `undici`'s normal requests.
+           * @default false
+           */
           normal?: false | {}
         }
   }
+}
+export const NETWORK_CONTEXT_KEY = 'x-network-context'
+export const WS_PROTOCOL = 'ws'
+
+export const CONTEXT_KEY_PORT = 'x-network-context-port'
+export const CONTEXT_KEY_SERVER_PORT = 'x-network-context-server-port'
+export const CONTEXT_KEY_AUTO_OPEN_DEVTOOL = 'x-network-context-auto-open-devtools'
+export const CONTEXT_KEY_INTERCEPT_NORMAL = 'x-network-context-intercept-normal'
+export const CONTEXT_KEY_INTERCEPT_FETCH = 'x-network-context-intercept-fetch'
+export const CONTEXT_KEY_INTERCEPT_UNDICI_FETCH = 'x-network-context-intercept-undici-fetch'
+export const CONTEXT_KEY_HASH = 'x-network-context-hash'
+
+export interface ConnectOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
+}
+
+export interface UnregisterOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
+}
+
+export interface SendMessageOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
+}
+export type RequestPipe = (req: RequestDetail) => RequestDetail | null
+
+export interface SetRequestInterceptorOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
+  request?: RequestPipe
+}
+export interface SetResponseInterceptorOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
+  response?: RequestPipe
+}
+
+export interface RemoveRequestInterceptorOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
+}
+
+export interface RemoveResponseInterceptorOptions {
+  /**
+   * @description Main Process Port
+   * @default 5270
+   */
+  port?: number
 }

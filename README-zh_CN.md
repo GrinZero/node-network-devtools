@@ -82,3 +82,7 @@ import { register } from 'node-network-devtools'
 const unregister = register()
 unregister()
 ```
+
+## ⚙️ 配置选项
+
+`register` 函数接受一个可选的 `RegisterOptions` 对象来定制其行为。有关可用选项及其详细说明的完整列表，请参阅[选项文档](apps/web/docs/zh/options.md)。

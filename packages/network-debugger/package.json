@@ -61,7 +61,7 @@
     "iconv-lite": "^0.7.0",
     "inspector": "^0.5.0",
     "open": "^8.4.2",
-    "ws": "^8.17.0"
+    "ws": "^8.17.1"
   },
   "peerDependencies": {
     "undici": "^6"

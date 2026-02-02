@@ -1,10 +1,21 @@
 const WebSocket = require('ws')
 
+function ensureNode16() {
+  if (typeof global.ReadableStream === 'undefined') {
+    const { ReadableStream, WritableStream, TransformStream } = require('node:stream/web')
+    global.ReadableStream = ReadableStream
+    global.WritableStream = WritableStream
+    global.TransformStream = TransformStream
+  }
+}
+
 const run = () => {
   let register
   try {
+    ensureNode16()
     register = require('node-network-devtools').register
-  } catch {
+  } catch (e) {
+    console.error(e)
     setTimeout(run, 1000)
     return
   }

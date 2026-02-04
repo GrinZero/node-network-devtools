@@ -811,4 +811,251 @@ describe('Receiver', () => {
       })
     })
   })
+
+  describe('关闭帧中的无效 UTF-8', () => {
+    it('应该在关闭帧原因包含无效 UTF-8 时报错', () => {
+      return new Promise<void>((resolve) => {
+        const receiver = new Receiver({ isServer: true, skipUTF8Validation: false })
+
+        receiver.on('error', (err: Error & { code?: string }) => {
+          expect(err.message).toContain('invalid UTF-8 sequence')
+          expect(err.code).toBe('WS_ERR_INVALID_UTF8')
+          resolve()
+        })
+
+        // Close frame with status code 1000 and invalid UTF-8 reason
+        const frame = Buffer.from([
+          0x88, // FIN + opcode 8 (close)
+          0x84, // MASK + length 4
+          0x00,
+          0x00,
+          0x00,
+          0x00, // mask key
+          0x03,
+          0xe8, // status code 1000
+          0xff,
+          0xfe // invalid UTF-8 reason
+        ])
+
+        receiver.write(frame)
+      })
+    })
+  })
+
+  describe('控制帧异步事件', () => {
+    it('应该异步触发 ping 事件当 allowSynchronousEvents 为 false', () => {
+      return new Promise<void>((resolve) => {
+        const receiver = new Receiver({ isServer: true, allowSynchronousEvents: false })
+        let syncFlag = true
+
+        receiver.on('ping', () => {
+          expect(syncFlag).toBe(false)
+          resolve()
+        })
+
+        const frame = Buffer.from([
+          0x89, // FIN + opcode 9 (ping)
+          0x80, // MASK + length 0
+          0x00,
+          0x00,
+          0x00,
+          0x00
+        ])
+
+        receiver.write(frame)
+        syncFlag = false
+      })
+    })
+
+    it('应该异步触发 pong 事件当 allowSynchronousEvents 为 false', () => {
+      return new Promise<void>((resolve) => {
+        const receiver = new Receiver({ isServer: true, allowSynchronousEvents: false })
+        let syncFlag = true
+
+        receiver.on('pong', () => {
+          expect(syncFlag).toBe(false)
+          resolve()
+        })
+
+        const frame = Buffer.from([
+          0x8a, // FIN + opcode 10 (pong)
+          0x80, // MASK + length 0
+          0x00,
+          0x00,
+          0x00,
+          0x00
+        ])
+
+        receiver.write(frame)
+        syncFlag = false
+      })
+    })
+  })
+
+  describe('压缩消息处理', () => {
+    it('应该处理压缩的消息', () => {
+      return new Promise<void>((resolve, reject) => {
+        const pmd = new PerMessageDeflate({}, true)
+        pmd.accept([{}])
+
+        const receiver = new Receiver({
+          isServer: true,
+          extensions: { 'permessage-deflate': pmd }
+        })
+
+        receiver.on('message', (data: Buffer) => {
+          expect(data.toString()).toBe('Hello')
+          // 不要在这里 cleanup，让测试自然结束
+          resolve()
+        })
+
+        receiver.on('error', (err) => {
+          reject(err)
+        })
+
+        // 先压缩数据
+        pmd.compress(Buffer.from('Hello'), true, (err, compressed) => {
+          if (err || !compressed) {
+            reject(err || new Error('Compression failed'))
+            return
+          }
+
+          // 构造压缩的 WebSocket 帧
+          // RSV1=1 表示压缩
+          const payloadLength = compressed.length
+          let frame: Buffer
+
+          if (payloadLength < 126) {
+            frame = Buffer.alloc(2 + 4 + payloadLength)
+            frame[0] = 0xc1 // FIN + RSV1 + opcode 1 (text)
+            frame[1] = 0x80 | payloadLength // MASK + length
+            frame[2] = 0x00
+            frame[3] = 0x00
+            frame[4] = 0x00
+            frame[5] = 0x00
+            compressed.copy(frame, 6)
+          } else {
+            frame = Buffer.alloc(4 + 4 + payloadLength)
+            frame[0] = 0xc1 // FIN + RSV1 + opcode 1 (text)
+            frame[1] = 0xfe // MASK + 126
+            frame.writeUInt16BE(payloadLength, 2)
+            frame[4] = 0x00
+            frame[5] = 0x00
+            frame[6] = 0x00
+            frame[7] = 0x00
+            compressed.copy(frame, 8)
+          }
+
+          receiver.write(frame)
+        })
+      })
+    })
+  })
+
+  describe('二进制消息异步事件', () => {
+    it('应该异步触发二进制消息事件当 allowSynchronousEvents 为 false', () => {
+      return new Promise<void>((resolve) => {
+        const receiver = new Receiver({ isServer: true, allowSynchronousEvents: false })
+        let syncFlag = true
+
+        receiver.on('message', (data: Buffer, isBinary: boolean) => {
+          expect(syncFlag).toBe(false)
+          expect(isBinary).toBe(true)
+          resolve()
+        })
+
+        const frame = Buffer.from([
+          0x82, // FIN + binary
+          0x83, // MASK + length 3
+          0x00,
+          0x00,
+          0x00,
+          0x00,
+          0x01,
+          0x02,
+          0x03
+        ])
+
+        receiver.write(frame)
+        syncFlag = false
+      })
+    })
+  })
+
+  describe('控制帧压缩错误', () => {
+    it('应该在控制帧设置 RSV1 时报错', () => {
+      return new Promise<void>((resolve) => {
+        const pmd = new PerMessageDeflate({}, true)
+        pmd.accept([{}])
+
+        const receiver = new Receiver({
+          isServer: true,
+          extensions: { 'permessage-deflate': pmd }
+        })
+
+        receiver.on('error', (err: Error & { code?: string }) => {
+          expect(err.message).toContain('RSV1 must be clear')
+          expect(err.code).toBe('WS_ERR_UNEXPECTED_RSV_1')
+          pmd.cleanup()
+          resolve()
+        })
+
+        // Ping frame with RSV1 set (invalid)
+        const frame = Buffer.from([
+          0xc9, // FIN + RSV1 + opcode 9 (ping)
+          0x80, // MASK + length 0
+          0x00,
+          0x00,
+          0x00,
+          0x00
+        ])
+
+        receiver.write(frame)
+      })
+    })
+  })
+
+  describe('continuation 帧压缩错误', () => {
+    it('应该在 continuation 帧设置 RSV1 时报错', () => {
+      return new Promise<void>((resolve) => {
+        const pmd = new PerMessageDeflate({}, true)
+        pmd.accept([{}])
+
+        const receiver = new Receiver({
+          isServer: true,
+          extensions: { 'permessage-deflate': pmd }
+        })
+
+        receiver.on('error', (err: Error & { code?: string }) => {
+          expect(err.message).toContain('RSV1 must be clear')
+          expect(err.code).toBe('WS_ERR_UNEXPECTED_RSV_1')
+          pmd.cleanup()
+          resolve()
+        })
+
+        // First fragment without RSV1
+        const fragment1 = Buffer.from([
+          0x01, // opcode 1 (text), FIN=0
+          0x80, // MASK + length 0
+          0x00,
+          0x00,
+          0x00,
+          0x00
+        ])
+
+        // Continuation frame with RSV1 set (invalid)
+        const fragment2 = Buffer.from([
+          0xc0, // opcode 0 (continuation), RSV1=1, FIN=1
+          0x80, // MASK + length 0
+          0x00,
+          0x00,
+          0x00,
+          0x00
+        ])
+
+        receiver.write(fragment1)
+        receiver.write(fragment2)
+      })
+    })
+  })
 })

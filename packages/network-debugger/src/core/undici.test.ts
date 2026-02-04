@@ -15,24 +15,30 @@ interface MockUndiciModule {
 }
 
 // 使用 vi.hoisted 确保变量在 mock 提升时可用
-const { mockFetchProxyFactory, mockUndiciModule, mockMainProcessInstance } = vi.hoisted(() => {
-  const mockProxyFn = vi.fn()
-  const undiciModule: MockUndiciModule = {
-    fetch: undefined
-  }
-  // 创建一个 mock MainProcess 实例
-  const mainProcessInstance = {
-    send: vi.fn(),
-    sendRequest: vi.fn().mockReturnThis(),
-    responseRequest: vi.fn(),
-    dispose: vi.fn()
-  }
-  return {
-    mockFetchProxyFactory: vi.fn().mockReturnValue(mockProxyFn),
-    mockUndiciModule: undiciModule,
-    mockMainProcessInstance: mainProcessInstance
-  }
-})
+const { mockFetchProxyFactory, mockUndiciModule, mockMainProcessInstance, MockMainProcessClass } =
+  vi.hoisted(() => {
+    const mockProxyFn = vi.fn()
+    const undiciModule: MockUndiciModule = {
+      fetch: undefined
+    }
+    // 创建一个 mock MainProcess 实例
+    const mainProcessInstance = {
+      send: vi.fn(),
+      sendRequest: vi.fn().mockReturnThis(),
+      responseRequest: vi.fn(),
+      dispose: vi.fn()
+    }
+    // 使用 function 关键字创建构造函数，避免 vitest 警告
+    function MainProcessConstructor() {
+      return mainProcessInstance
+    }
+    return {
+      mockFetchProxyFactory: vi.fn().mockReturnValue(mockProxyFn),
+      mockUndiciModule: undiciModule,
+      mockMainProcessInstance: mainProcessInstance,
+      MockMainProcessClass: MainProcessConstructor
+    }
+  })
 
 // Mock fetch.ts 模块
 vi.mock('./fetch', () => ({
@@ -44,10 +50,10 @@ vi.mock('undici', () => ({
   default: mockUndiciModule
 }))
 
-// Mock fork.ts 模块，导出一个可以返回我们 mock 实例的 MainProcess
+// Mock fork.ts 模块，使用 function 构造函数
 vi.mock('./fork', () => {
   return {
-    MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+    MainProcess: MockMainProcessClass,
     __dirname: '/mock/path'
   }
 })
@@ -80,7 +86,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 
@@ -109,7 +115,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 
@@ -139,7 +145,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 
@@ -174,7 +180,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 
@@ -206,7 +212,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 
@@ -238,7 +244,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 
@@ -273,7 +279,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 
@@ -316,7 +322,7 @@ describe('core/undici.ts', () => {
         default: mockUndiciModule
       }))
       vi.doMock('./fork', () => ({
-        MainProcess: vi.fn().mockImplementation(() => mockMainProcessInstance),
+        MainProcess: MockMainProcessClass,
         __dirname: '/mock/path'
       }))
 

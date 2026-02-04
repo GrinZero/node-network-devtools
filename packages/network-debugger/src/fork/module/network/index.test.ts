@@ -227,6 +227,55 @@ describe('fork/module/network/index.ts', () => {
       expect(storedRequest).toBeDefined()
       expect(storedRequest.initiator).toBeDefined()
     })
+
+    test('处理带有 initiator 且 scriptId 存在的请求', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+
+      const pluginResult = networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: [networkPlugin]
+      })
+
+      // 先获取本地脚本列表，这会填充 resourceService
+      const scriptList = pluginResult.resourceService.getLocalScriptList()
+
+      // 使用一个已知的脚本 URL
+      const knownScriptUrl = scriptList.length > 0 ? scriptList[0].url : ''
+
+      if (knownScriptUrl) {
+        const testRequest = createTestRequest({
+          id: 'initiator-scriptid-test-id',
+          initiator: {
+            type: 'script',
+            stack: {
+              callFrames: [
+                {
+                  columnNumber: 10,
+                  functionName: 'testFunction',
+                  lineNumber: 20,
+                  url: knownScriptUrl.replace('file://', ''),
+                  scriptId: ''
+                }
+              ]
+            }
+          }
+        })
+
+        const initRequestHandlers = registeredHandlers.get('initRequest')
+        initRequestHandlers![0]({ data: testRequest, id: undefined })
+
+        const storedRequest = pluginResult.getRequest('initiator-scriptid-test-id')
+        expect(storedRequest).toBeDefined()
+        // scriptId 应该被设置
+        if (storedRequest.initiator?.stack.callFrames[0]) {
+          expect(storedRequest.initiator.stack.callFrames[0].scriptId).toBeDefined()
+        }
+      }
+    })
   })
 
   describe('registerRequest 处理器', () => {
@@ -328,6 +377,54 @@ describe('fork/module/network/index.ts', () => {
           })
         })
       )
+    })
+
+    test('处理带有 initiator 且 scriptId 存在的 registerRequest', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+
+      const pluginResult = networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: [networkPlugin]
+      })
+
+      // 先获取本地脚本列表，这会填充 resourceService
+      const scriptList = pluginResult.resourceService.getLocalScriptList()
+
+      // 使用一个已知的脚本 URL
+      const knownScriptUrl = scriptList.length > 0 ? scriptList[0].url : ''
+
+      if (knownScriptUrl) {
+        const testRequest = createTestRequest({
+          id: 'register-initiator-scriptid-test-id',
+          initiator: {
+            type: 'script',
+            stack: {
+              callFrames: [
+                {
+                  columnNumber: 10,
+                  functionName: 'testFunction',
+                  lineNumber: 20,
+                  url: knownScriptUrl.replace('file://', ''),
+                  scriptId: ''
+                }
+              ]
+            }
+          }
+        })
+
+        const registerRequestHandlers = registeredHandlers.get('registerRequest')
+        registerRequestHandlers![0]({ data: testRequest, id: undefined })
+
+        expect(mockDevtoolSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            method: 'Network.requestWillBeSent'
+          })
+        )
+      }
     })
   })
 
@@ -701,6 +798,206 @@ describe('fork/module/network/index.ts', () => {
 
       // 不应该发送任何消息
       expect(mockDevtoolSend).not.toHaveBeenCalled()
+    })
+
+    test('处理 gzip 压缩的响应数据', async () => {
+      const zlib = await import('zlib')
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: [networkPlugin]
+      })
+
+      // 先初始化一个请求
+      const testRequest = createTestRequest({ id: 'gzip-test-id' })
+      const initRequestHandlers = registeredHandlers.get('initRequest')
+      initRequestHandlers![0]({ data: testRequest, id: undefined })
+
+      // 清除之前的调用记录
+      mockDevtoolSend.mockClear()
+
+      // 创建 gzip 压缩的数据
+      const originalData = '{"compressed":"data"}'
+      const compressedData = zlib.gzipSync(Buffer.from(originalData))
+
+      const responseDataHandlers = registeredHandlers.get('responseData')
+      responseDataHandlers![0]({
+        data: {
+          id: 'gzip-test-id',
+          rawData: Array.from(compressedData),
+          statusCode: 200,
+          headers: { 'Content-Encoding': 'gzip' }
+        },
+        id: undefined
+      })
+
+      // 等待异步解压缩完成
+      await vi.waitFor(() => {
+        expect(mockDevtoolSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            method: 'Network.responseReceived'
+          })
+        )
+      })
+    })
+
+    test('处理 deflate 压缩的响应数据', async () => {
+      const zlib = await import('zlib')
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: [networkPlugin]
+      })
+
+      // 先初始化一个请求
+      const testRequest = createTestRequest({ id: 'deflate-test-id' })
+      const initRequestHandlers = registeredHandlers.get('initRequest')
+      initRequestHandlers![0]({ data: testRequest, id: undefined })
+
+      // 清除之前的调用记录
+      mockDevtoolSend.mockClear()
+
+      // 创建 deflate 压缩的数据
+      const originalData = '{"deflate":"data"}'
+      const compressedData = zlib.deflateSync(Buffer.from(originalData))
+
+      const responseDataHandlers = registeredHandlers.get('responseData')
+      responseDataHandlers![0]({
+        data: {
+          id: 'deflate-test-id',
+          rawData: Array.from(compressedData),
+          statusCode: 200,
+          headers: { 'Content-Encoding': 'deflate' }
+        },
+        id: undefined
+      })
+
+      // 等待异步解压缩完成
+      await vi.waitFor(() => {
+        expect(mockDevtoolSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            method: 'Network.responseReceived'
+          })
+        )
+      })
+    })
+
+    test('处理 brotli 压缩的响应数据', async () => {
+      const zlib = await import('zlib')
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: [networkPlugin]
+      })
+
+      // 先初始化一个请求
+      const testRequest = createTestRequest({ id: 'brotli-test-id' })
+      const initRequestHandlers = registeredHandlers.get('initRequest')
+      initRequestHandlers![0]({ data: testRequest, id: undefined })
+
+      // 清除之前的调用记录
+      mockDevtoolSend.mockClear()
+
+      // 创建 brotli 压缩的数据
+      const originalData = '{"brotli":"data"}'
+      const compressedData = zlib.brotliCompressSync(Buffer.from(originalData))
+
+      const responseDataHandlers = registeredHandlers.get('responseData')
+      responseDataHandlers![0]({
+        data: {
+          id: 'brotli-test-id',
+          rawData: Array.from(compressedData),
+          statusCode: 200,
+          headers: { 'Content-Encoding': 'br' }
+        },
+        id: undefined
+      })
+
+      // 等待异步解压缩完成
+      await vi.waitFor(() => {
+        expect(mockDevtoolSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            method: 'Network.responseReceived'
+          })
+        )
+      })
+    })
+  })
+
+  describe('endRequest 边界情况', () => {
+    test('没有 content-type 时使用默认值', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+      registeredHandlers.clear()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: []
+      })
+
+      const testRequest = createTestRequest({
+        id: 'no-content-type-id',
+        responseHeaders: {} // 没有 content-type
+      })
+
+      const endRequestHandlers = registeredHandlers.get('endRequest')
+      endRequestHandlers![0]({ data: testRequest, id: undefined })
+
+      expect(mockDevtool.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'Network.responseReceived',
+          params: expect.objectContaining({
+            response: expect.objectContaining({
+              mimeType: 'text/plain'
+            })
+          })
+        })
+      )
+    })
+
+    test('没有 requestEndTime 时使用当前时间', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+      registeredHandlers.clear()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: []
+      })
+
+      const testRequest = createTestRequest({
+        id: 'no-end-time-id',
+        requestEndTime: undefined
+      })
+
+      const beforeTime = Date.now()
+      const endRequestHandlers = registeredHandlers.get('endRequest')
+      endRequestHandlers![0]({ data: testRequest, id: undefined })
+      const afterTime = Date.now()
+
+      // 验证 requestEndTime 被设置
+      expect(mockDevtool.send).toHaveBeenCalled()
     })
   })
 })

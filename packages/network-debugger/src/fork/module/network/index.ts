@@ -4,12 +4,55 @@ import { BodyTransformer, RequestHeaderPipe } from '../../pipe'
 import { createPlugin, useHandler } from '../common'
 import zlib from 'node:zlib'
 import { ResourceService } from '../../resource-service'
+import type { Network, Runtime } from 'node:inspector'
+
+const inspector = (async () => {
+  return await import('node:inspector')
+})()
 
 const frameId = '517.528'
 const loaderId = '517.529'
 
 export const toMimeType = (contentType: string) => {
   return contentType.split(';')[0] || 'text/plain'
+}
+
+/**
+ * 将本项目中的 Initiator 结构转换为 node:inspector 的 Network.Initiator
+ * - 本地格式：{ type: string; stack: { callFrames: CDPCallFrame[] } }
+ * - 目标格式：Network.Initiator（可包含 url/lineNumber/columnNumber 等可选字段）
+ */
+export const toInspectorInitiator = (initiator?: RequestDetail['initiator']): Network.Initiator => {
+  if (!initiator) {
+    // 提供一个最小可用的 Initiator，避免类型不满足要求
+    return { type: 'other' }
+  }
+
+  const callFrames = initiator.stack?.callFrames ?? []
+
+  // 仅在所有必要字段存在时构造 StackTrace，以满足类型约束
+  const framesForInspector: Runtime.CallFrame[] = callFrames
+    .filter((f) => typeof f.scriptId === 'string' && !!f.scriptId)
+    .map((f) => ({
+      functionName: f.functionName || '',
+      scriptId: f.scriptId as string,
+      url: f.url || '',
+      lineNumber: typeof f.lineNumber === 'number' ? f.lineNumber : 0,
+      columnNumber: typeof f.columnNumber === 'number' ? f.columnNumber : 0
+    }))
+
+  const stack: Runtime.StackTrace | undefined =
+    framesForInspector.length > 0 ? { callFrames: framesForInspector } : undefined
+
+  const topFrame = callFrames[0]
+
+  return {
+    type: initiator.type,
+    ...(stack ? { stack } : {}),
+    ...(topFrame?.url ? { url: topFrame.url } : {}),
+    ...(typeof topFrame?.lineNumber === 'number' ? { lineNumber: topFrame.lineNumber } : {}),
+    ...(typeof topFrame?.columnNumber === 'number' ? { columnNumber: topFrame.columnNumber } : {})
+  }
 }
 
 export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
@@ -146,8 +189,10 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
     requests[request.id] = request
   })
 
-  useHandler<RequestDetail>('registerRequest', ({ data }) => {
+  useHandler<RequestDetail>('registerRequest', async ({ data }) => {
     const request = new RequestDetail(data)
+
+    const inspect = await inspector.catch(() => null)
 
     requests[request.id] = request
     // replace callFrames' scriptId
@@ -166,6 +211,21 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
 
     const headerPipe = new RequestHeaderPipe(request.requestHeaders)
     const contentType = headerPipe.getHeader('content-type')
+
+    if (inspect && inspect.Network) {
+      const newInitiator = toInspectorInitiator(request.initiator)
+      inspect.Network.requestWillBeSent({
+        requestId: request.id,
+        timestamp: devtool.timestamp,
+        wallTime: request.requestStartTime!,
+        request: {
+          url: request.url!,
+          method: request.method!,
+          headers: headerPipe.getData()
+        },
+        initiator: newInitiator!
+      })
+    }
 
     return devtool.send({
       method: 'Network.requestWillBeSent',

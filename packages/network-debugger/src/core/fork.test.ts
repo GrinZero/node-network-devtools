@@ -51,8 +51,8 @@ vi.mock('ws', () => {
 
   function MockWebSocket(this: EventEmitter) {
     EventEmitter.call(this)
-    this.send = mockWsSend
-    this.terminate = mockWsTerminate
+    (this as any).send = mockWsSend
+    (this as any).terminate = mockWsTerminate
     const originalRemoveAllListeners = this.removeAllListeners.bind(this)
     this.removeAllListeners = function () {
       mockWsRemoveAllListeners()

@@ -101,8 +101,8 @@ describe('fork/module/health/index.ts', () => {
       const mockCore = createMockCore()
 
       healthPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [healthPlugin]
       })
 
@@ -116,8 +116,8 @@ describe('fork/module/health/index.ts', () => {
       const mockCore = createMockCore()
 
       healthPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [healthPlugin]
       })
 
@@ -134,8 +134,8 @@ describe('fork/module/health/index.ts', () => {
       const mockCore = createMockCore()
 
       healthPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [healthPlugin]
       })
 
@@ -166,8 +166,8 @@ describe('fork/module/health/index.ts', () => {
       const mockCore = createMockCore()
 
       healthPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [healthPlugin]
       })
 
@@ -196,8 +196,8 @@ describe('fork/module/health/index.ts', () => {
       const mockCore = createMockCore()
 
       healthPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [healthPlugin]
       })
 

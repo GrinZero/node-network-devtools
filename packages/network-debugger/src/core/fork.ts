@@ -4,6 +4,7 @@ import WebSocket from 'ws'
 import { ChildProcess, fork } from 'child_process'
 import { __dirname } from '../common'
 import { resolve as resolvePath } from 'path'
+import { IS_DEV_MODE } from '../common'
 import { RegisterOptions } from '../common'
 import fs from 'fs'
 import { sleep, checkMainProcessAlive } from '../utils/process'
@@ -26,9 +27,38 @@ export class MainProcess {
   private ws: Promise<WebSocket>
   private options: RegisterOptions
   private cp?: ChildProcess
+  private nativeNetwork?: any
 
   constructor(props: RegisterOptions & { key: string }) {
-    this.options = props
+    this.options = { ...props }
+
+    try {
+      const inspector = require('inspector')
+      // Check if native inspector is active and supports Network
+      if (inspector.url() && inspector.Network) {
+        this.nativeNetwork = { ...inspector.Network }
+        // Disable native network tracking to prevent duplicate logs
+        const methods = [
+          'requestWillBeSent',
+          'responseReceived',
+          'loadingFinished',
+          'loadingFailed',
+          'dataSent',
+          'dataReceived'
+        ]
+        methods.forEach((method) => {
+          if (typeof (inspector.Network as any)[method] === 'function') {
+            ;(inspector.Network as any)[method] = () => {}
+          }
+        })
+
+        // Since the user is already connected to native devtools, don't open a new browser
+        this.options.autoOpenDevtool = false
+      }
+    } catch (e) {
+      // ignore
+    }
+
     this.ws = new Promise<WebSocket>(async (resolve, reject) => {
       const lockFilePath = resolvePath(__dirname, `./${props.key}`)
       if (fs.existsSync(lockFilePath)) {
@@ -50,8 +80,28 @@ export class MainProcess {
       }
       fs.writeFileSync(lockFilePath, `${process.pid}`)
       const socket = new WebSocket(`ws://localhost:${props.port}`)
+      const setupSocket = (s: WebSocket) => {
+        s.on('message', (msg) => {
+          try {
+            const data = JSON.parse(msg.toString())
+            if (data.type === 'cdp' && this.nativeNetwork) {
+              const { method, params } = data.data
+              if (method && method.startsWith('Network.')) {
+                const methodName = method.split('.')[1]
+                if (typeof this.nativeNetwork[methodName] === 'function') {
+                  this.nativeNetwork[methodName](params)
+                }
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+        })
+      }
+
       socket.on('open', () => {
         unlinkSafe(lockFilePath)
+        setupSocket(socket)
         resolve(socket)
       })
       socket.on('error', () => {
@@ -59,6 +109,7 @@ export class MainProcess {
           unlinkSafe(lockFilePath)
           const socket = new WebSocket(`ws://localhost:${props.port}`)
           socket.on('open', () => {
+            setupSocket(socket)
             resolve(socket)
           })
           socket.on('error', reject)

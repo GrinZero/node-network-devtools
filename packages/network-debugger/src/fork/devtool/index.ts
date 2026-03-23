@@ -11,6 +11,7 @@ export interface DevtoolServerInitOptions {
   autoOpenDevtool?: boolean
   onConnect?: () => void
   onClose?: () => void
+  onSend?: (message: DevtoolMessage) => void
 }
 
 export interface IDevtoolServer {
@@ -26,10 +27,13 @@ export class DevtoolServer extends BaseDevtoolServer implements IDevtoolServer {
   private browser: ChildProcess | null = null
   private socket: Promise<[WebSocket]>
 
+  private onSend?: (message: DevtoolMessage) => void
+
   constructor(props: DevtoolServerInitOptions) {
     super()
-    const { port, autoOpenDevtool = true, onConnect, onClose } = props
+    const { port, autoOpenDevtool = true, onConnect, onClose, onSend } = props
     this.port = port
+    this.onSend = onSend
     this.server = new Server({ port })
     const { server } = this
 
@@ -135,6 +139,9 @@ export class DevtoolServer extends BaseDevtoolServer implements IDevtoolServer {
   }
 
   async send(message: DevtoolMessage) {
+    if (this.onSend) {
+      this.onSend(message)
+    }
     const [socket] = await this.socket
     return socket.send(JSON.stringify(message))
   }

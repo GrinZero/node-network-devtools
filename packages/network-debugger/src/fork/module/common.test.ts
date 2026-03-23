@@ -99,14 +99,14 @@ describe('fork/module/common.ts', () => {
       const plugins = [plugin]
 
       const result = plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins
       })
 
       expect(pluginFn).toHaveBeenCalledWith({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins
       })
       expect(result).toEqual({ result: 'test' })
@@ -123,8 +123,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       const result = plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -142,8 +142,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       const result = plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -165,8 +165,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -198,8 +198,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -222,8 +222,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -246,8 +246,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -279,8 +279,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -313,8 +313,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -346,14 +346,14 @@ describe('fork/module/common.ts', () => {
       const plugins = [plugin1, plugin2]
 
       plugin1({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins
       })
 
       plugin2({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins
       })
 
@@ -378,8 +378,8 @@ describe('fork/module/common.ts', () => {
       const mockCore = createMockCore()
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [plugin]
       })
 
@@ -403,8 +403,8 @@ describe('fork/module/common.ts', () => {
       const plugins = [plugin]
 
       plugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins
       })
 

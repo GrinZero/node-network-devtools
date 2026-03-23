@@ -134,8 +134,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -154,8 +154,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -173,8 +173,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -198,8 +198,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -235,8 +235,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       const pluginResult = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -286,8 +286,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -325,8 +325,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -356,8 +356,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -386,8 +386,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       const pluginResult = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -436,8 +436,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -479,8 +479,8 @@ describe('fork/module/network/index.ts', () => {
       registeredHandlers.clear()
 
       networkPlugin({
-        devtool: mockDevtool1,
-        core: mockCore1,
+        devtool: mockDevtool1 as any,
+        core: mockCore1 as any,
         plugins: []
       })
 
@@ -510,8 +510,8 @@ describe('fork/module/network/index.ts', () => {
       registeredHandlers.clear()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: []
       })
 
@@ -541,8 +541,8 @@ describe('fork/module/network/index.ts', () => {
       registeredHandlers.clear()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: []
       })
 
@@ -572,8 +572,8 @@ describe('fork/module/network/index.ts', () => {
       registeredHandlers.clear()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: []
       })
 
@@ -603,8 +603,8 @@ describe('fork/module/network/index.ts', () => {
       registeredHandlers.clear()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: []
       })
 
@@ -635,8 +635,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -676,8 +676,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -702,8 +702,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -730,8 +730,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -775,8 +775,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -808,8 +808,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -854,8 +854,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -900,8 +900,8 @@ describe('fork/module/network/index.ts', () => {
       const mockCore = createMockCore()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: [networkPlugin]
       })
 
@@ -948,8 +948,8 @@ describe('fork/module/network/index.ts', () => {
       registeredHandlers.clear()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: []
       })
 
@@ -981,8 +981,8 @@ describe('fork/module/network/index.ts', () => {
       registeredHandlers.clear()
 
       networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
+        devtool: mockDevtool as any,
+        core: mockCore as any,
         plugins: []
       })
 

@@ -17,7 +17,7 @@ describe('CDP Protocol Correctness Tests', () => {
       const messages: Array<{ method: string; timestamp?: number }> = []
 
       // 模拟 devtool.send 收集消息
-      const mockSend = vi.fn((msg: { method?: string; params?: { timestamp?: number } }) => {
+      const mockSend = vi.fn((msg: any) => {
         if (msg.method) {
           messages.push({
             method: msg.method,

@@ -1,6 +1,6 @@
 import { DevtoolServer } from './devtool'
 import { PORT, READY_MESSAGE, RequestDetail } from '../common'
-import { Server } from 'ws'
+import { Server, WebSocket } from 'ws'
 import { log } from '../utils'
 import { PluginInstance } from './module/common'
 
@@ -23,6 +23,7 @@ export interface DevtoolMessageListener<T = any> {
 export class RequestCenter {
   private devtool: DevtoolServer
   private server: Server
+  private clients: Set<WebSocket> = new Set()
   private listeners: Record<string, Set<DevtoolMessageListener> | undefined> = {}
   private options: RequestCenterInitOptions
   constructor(options: RequestCenterInitOptions) {
@@ -31,6 +32,14 @@ export class RequestCenter {
     this.devtool = new DevtoolServer({
       port: serverPort,
       autoOpenDevtool: autoOpenDevtool,
+      onSend: (message) => {
+        const payload = JSON.stringify({ type: 'cdp', data: message })
+        this.clients.forEach(client => {
+          if (client.readyState === 1 /* WebSocket.OPEN */) {
+            client.send(payload)
+          }
+        })
+      },
       onConnect: () => {
         const listeners = this.listeners['onConnect']
         listeners?.forEach((listener) =>
@@ -105,6 +114,10 @@ export class RequestCenter {
   private initServer() {
     const server = new Server({ port: this.options.port || PORT })
     server.on('connection', (ws) => {
+      this.clients.add(ws)
+      ws.on('close', () => {
+        this.clients.delete(ws)
+      })
       ws.on('message', (data) => {
         const message = JSON.parse(data.toString())
         const _message = message as { type: string; data: any }

@@ -36,6 +36,7 @@ export class MainProcess {
       const inspector = require('inspector')
       // Check if native inspector is active and supports Network
       if (inspector.url() && inspector.Network) {
+        warn(`[Network Debugger] Detected native Node inspector. Hijacking inspector.Network to forward CDP events to native DevTools.`)
         this.nativeNetwork = { ...inspector.Network }
         // Disable native network tracking to prevent duplicate logs
         const methods = [
@@ -56,7 +57,7 @@ export class MainProcess {
         this.options.autoOpenDevtool = false
       }
     } catch (e) {
-      // ignore
+      warn(`[Network Debugger] Error during native inspector setup: ${e}`)
     }
 
     this.ws = new Promise<WebSocket>(async (resolve, reject) => {
@@ -89,12 +90,16 @@ export class MainProcess {
               if (method && method.startsWith('Network.')) {
                 const methodName = method.split('.')[1]
                 if (typeof this.nativeNetwork[methodName] === 'function') {
-                  this.nativeNetwork[methodName](params)
+                  try {
+                    this.nativeNetwork[methodName](params)
+                  } catch (err) {
+                    warn(`[Network Debugger] Native network forwarding error for method ${method}: ${err}`)
+                  }
                 }
               }
             }
           } catch (e) {
-            // ignore
+            // ignore JSON parse errors
           }
         })
       }

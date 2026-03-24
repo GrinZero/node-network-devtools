@@ -33,12 +33,14 @@ export class RequestCenter {
       port: serverPort,
       autoOpenDevtool: autoOpenDevtool,
       onSend: (message) => {
-        const payload = JSON.stringify({ type: 'cdp', data: message })
-        this.clients.forEach(client => {
-          if (client.readyState === 1 /* WebSocket.OPEN */) {
-            client.send(payload)
-          }
-        })
+        if (this.clients.size > 0) {
+          const payload = JSON.stringify({ type: 'cdp', data: message })
+          this.clients.forEach(client => {
+            if (client.readyState === 1 /* WebSocket.OPEN */) {
+              client.send(payload)
+            }
+          })
+        }
       },
       onConnect: () => {
         const listeners = this.listeners['onConnect']
@@ -114,8 +116,10 @@ export class RequestCenter {
   private initServer() {
     const server = new Server({ port: this.options.port || PORT })
     server.on('connection', (ws) => {
+      // log(`[Network Debugger] DevTools client connected to RequestCenter.`)
       this.clients.add(ws)
       ws.on('close', () => {
+        // log(`[Network Debugger] DevTools client disconnected from RequestCenter.`)
         this.clients.delete(ws)
       })
       ws.on('message', (data) => {

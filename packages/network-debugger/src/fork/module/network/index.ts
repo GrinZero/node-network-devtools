@@ -30,6 +30,9 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
     const contentType = headers.getHeader('content-type') || 'text/plain; charset=utf-8'
 
     const type = (() => {
+      if (/text\/event-stream/.test(contentType)) {
+        return 'EventSource'
+      }
       if (/image/.test(contentType)) {
         return 'Image'
       }
@@ -220,6 +223,32 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
         endRequest(request)
       })
     }
+  })
+
+  // Handle Server-Sent Events (SSE) messages
+  useHandler<{
+    requestId: string
+    eventName: string
+    eventId: string
+    data: string
+  }>('eventSourceMessage', ({ data }) => {
+    const { requestId, eventName, eventId, data: eventData } = data
+    const request = getRequest(requestId)
+    if (!request) {
+      return
+    }
+
+    devtool.updateTimestamp()
+    devtool.send({
+      method: 'Network.eventSourceMessageReceived',
+      params: {
+        requestId,
+        timestamp: devtool.timestamp,
+        eventName,
+        eventId,
+        data: eventData
+      }
+    })
   })
 
   return {

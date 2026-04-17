@@ -77,6 +77,46 @@ router.get('/fetch', async (ctx) => {
   ctx.body = data
 })
 
+// SSE test endpoint - server side
+router.get('/sse-server', async (ctx) => {
+  ctx.set('Content-Type', 'text/event-stream')
+  ctx.set('Cache-Control', 'no-cache')
+  ctx.set('Connection', 'keep-alive')
+
+  ctx.status = 200
+  ctx.respond = false
+
+  const res = ctx.res
+  let count = 0
+  const interval = setInterval(() => {
+    count++
+    res.write(`event: message\nid: ${count}\ndata: {"count": ${count}, "time": "${new Date().toISOString()}"}\n\n`)
+    if (count >= 5) {
+      clearInterval(interval)
+      res.end()
+    }
+  }, 500)
+})
+
+// SSE test endpoint - fetch SSE from external source
+router.get('/sse-fetch', async (ctx) => {
+  // Fetch SSE from our own server
+  const response = await fetch('http://localhost:3001/sse-server')
+  
+  // Consume the stream to capture events
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let result = ''
+  
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    result += decoder.decode(value, { stream: true })
+  }
+  
+  ctx.body = { message: 'SSE stream consumed', data: result }
+})
+
 app.use(router.routes())
 app.listen(3001)
 

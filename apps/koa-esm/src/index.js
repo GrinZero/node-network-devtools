@@ -77,6 +77,45 @@ router.get('/fetch', async (ctx) => {
   ctx.body = data
 })
 
+// Test case 1: text/plain + JSON body
+router.get('/post-text-plain', async (ctx) => {
+  const res = await axios.post(
+    'https://jsonplaceholder.typicode.com/posts',
+    JSON.stringify({ title: 'foo', body: 'bar', userId: 1 }),
+    { headers: { 'Content-Type': 'text/plain' } }
+  )
+  ctx.body = res.data
+})
+
+// Test case 2: application/x-www-form-urlencoded
+router.get('/post-form', async (ctx) => {
+  const res = await axios.post(
+    'https://jsonplaceholder.typicode.com/posts',
+    'title=foo&body=bar&userId=1',
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  )
+  ctx.body = res.data
+})
+
+// Test case 3: pure text body
+router.get('/post-pure-text', async (ctx) => {
+  const res = await axios.post(
+    'https://jsonplaceholder.typicode.com/posts',
+    'This is a plain text message',
+    { headers: { 'Content-Type': 'text/plain' } }
+  )
+  ctx.body = res.data
+})
+
+// Test case 4: Buffer body
+router.get('/post-buffer', async (ctx) => {
+  const buffer = Buffer.from(JSON.stringify({ title: 'buffer', body: 'test', userId: 1 }))
+  const res = await axios.post('https://jsonplaceholder.typicode.com/posts', buffer, {
+    headers: { 'Content-Type': 'application/json' }
+  })
+  ctx.body = res.data
+})
+
 app.use(router.routes())
 app.listen(3001)
 

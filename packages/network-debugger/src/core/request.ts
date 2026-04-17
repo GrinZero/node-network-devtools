@@ -22,8 +22,25 @@ function proxyClientRequestFactory(
 ) {
   const actualFn = actualRequest.write
   actualRequest.write = (data: any) => {
-    // 保持原始数据格式，由 DevTools 自行解析展示
-    requestDetail.requestData = data
+    // Convert to string at source to avoid IPC serialization issues
+    // Accumulate multiple writes (e.g., multipart/form-data)
+    let chunk: string
+    if (Buffer.isBuffer(data)) {
+      chunk = data.toString('utf-8')
+    } else if (typeof data === 'string') {
+      chunk = data
+    } else if (data != null) {
+      chunk = JSON.stringify(data)
+    } else {
+      chunk = ''
+    }
+
+    if (requestDetail.requestData) {
+      requestDetail.requestData += chunk
+    } else {
+      requestDetail.requestData = chunk
+    }
+
     return actualFn.bind(actualRequest)(data)
   }
 

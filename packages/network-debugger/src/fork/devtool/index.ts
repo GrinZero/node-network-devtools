@@ -62,7 +62,7 @@ export class DevtoolServer extends BaseDevtoolServer implements IDevtoolServer {
   }
 
   public async open() {
-    const url = `devtools://devtools/bundled/inspector.html?ws=localhost:${this.port}`
+    const url = `devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${this.port}`
     try {
       if (IS_DEV_MODE) {
         log(`In dev mode, open chrome devtool manually: ${url}`)
@@ -90,7 +90,7 @@ export class DevtoolServer extends BaseDevtoolServer implements IDevtoolServer {
               }
               try {
                 count++
-                resolve((await fetch(`http://localhost:${REMOTE_DEBUGGER_PORT}/json`)).json())
+                resolve((await fetch(`http://127.0.0.1:${REMOTE_DEBUGGER_PORT}/json`)).json())
                 clearInterval(stop)
               } catch {
                 // ignore

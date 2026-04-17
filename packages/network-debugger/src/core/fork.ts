@@ -49,7 +49,7 @@ export class MainProcess {
         unlinkSafe(lockFilePath)
       }
       fs.writeFileSync(lockFilePath, `${process.pid}`)
-      const socket = new WebSocket(`ws://localhost:${props.port}`)
+      const socket = new WebSocket(`ws://127.0.0.1:${props.port}`)
       socket.on('open', () => {
         unlinkSafe(lockFilePath)
         resolve(socket)
@@ -57,7 +57,7 @@ export class MainProcess {
       socket.on('error', () => {
         this.openProcess(() => {
           unlinkSafe(lockFilePath)
-          const socket = new WebSocket(`ws://localhost:${props.port}`)
+          const socket = new WebSocket(`ws://127.0.0.1:${props.port}`)
           socket.on('open', () => {
             resolve(socket)
           })

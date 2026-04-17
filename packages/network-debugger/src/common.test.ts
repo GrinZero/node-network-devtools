@@ -255,23 +255,23 @@ describe('RequestDetail', () => {
   })
 
   describe('isHiden', () => {
-    test('should return true for ws://localhost/ websocket connections', () => {
+    test('should return true for ws://127.0.0.1/ websocket connections', () => {
       const requestDetail = new RequestDetail()
       requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'ws://localhost/'
+      requestDetail.url = 'ws://127.0.0.1/'
 
       expect(requestDetail.isHiden()).toBe(true)
     })
 
-    test('should return true for http://localhost/ websocket connections', () => {
+    test('should return true for http://127.0.0.1/ websocket connections', () => {
       const requestDetail = new RequestDetail()
       requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'http://localhost/'
+      requestDetail.url = 'http://127.0.0.1/'
 
       expect(requestDetail.isHiden()).toBe(true)
     })
 
-    test('should return false for non-localhost websocket connections', () => {
+    test('should return false for non-127.0.0.1 websocket connections', () => {
       const requestDetail = new RequestDetail()
       requestDetail.requestHeaders = { Upgrade: 'websocket' }
       requestDetail.url = 'ws://example.com/'
@@ -279,26 +279,26 @@ describe('RequestDetail', () => {
       expect(requestDetail.isHiden()).toBe(false)
     })
 
-    test('should return false for non-websocket localhost connections', () => {
+    test('should return false for non-websocket 127.0.0.1 connections', () => {
       const requestDetail = new RequestDetail()
       requestDetail.requestHeaders = { 'Content-Type': 'application/json' }
-      requestDetail.url = 'http://localhost/'
+      requestDetail.url = 'http://127.0.0.1/'
 
       expect(requestDetail.isHiden()).toBe(false)
     })
 
-    test('should return false for websocket with different localhost path', () => {
+    test('should return false for websocket with different 127.0.0.1 path', () => {
       const requestDetail = new RequestDetail()
       requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'ws://localhost/api'
+      requestDetail.url = 'ws://127.0.0.1/api'
 
       expect(requestDetail.isHiden()).toBe(false)
     })
 
-    test('should return false for websocket with localhost and port', () => {
+    test('should return false for websocket with 127.0.0.1 and port', () => {
       const requestDetail = new RequestDetail()
       requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'ws://localhost:8080/'
+      requestDetail.url = 'ws://127.0.0.1:8080/'
 
       expect(requestDetail.isHiden()).toBe(false)
     })
@@ -311,10 +311,10 @@ describe('RequestDetail', () => {
       expect(requestDetail.isHiden()).toBe(false)
     })
 
-    test('should return false for wss://localhost/ (secure websocket)', () => {
+    test('should return false for wss://127.0.0.1/ (secure websocket)', () => {
       const requestDetail = new RequestDetail()
       requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'wss://localhost/'
+      requestDetail.url = 'wss://127.0.0.1/'
 
       expect(requestDetail.isHiden()).toBe(false)
     })

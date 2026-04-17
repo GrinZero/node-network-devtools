@@ -749,9 +749,9 @@ describe('core/request.ts', () => {
           mockMainProcess as never
         )
 
-        // 使用 localhost 的隐藏 URL
+        // 使用 127.0.0.1 的隐藏 URL
         const options: RequestOptions = {
-          hostname: 'localhost',
+          hostname: '127.0.0.1',
           path: '/',
           method: 'GET',
           headers: {

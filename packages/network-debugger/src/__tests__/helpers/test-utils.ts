@@ -91,7 +91,7 @@ export function createCDPMessage(overrides?: Partial<MockCDPMessage>): MockCDPMe
 export function createMockRequestOptions(overrides?: Record<string, unknown>) {
   return {
     method: 'GET',
-    hostname: 'localhost',
+    hostname: '127.0.0.1',
     port: 80,
     path: '/',
     headers: {},

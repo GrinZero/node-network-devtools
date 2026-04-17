@@ -47,7 +47,7 @@ export class RequestDetail {
   }
 
   isHiden() {
-    return this.isWebSocket() && ['http://localhost/', 'ws://localhost/'].includes(this.url!)
+    return this.isWebSocket() && ['http://127.0.0.1/', 'ws://127.0.0.1/'].includes(this.url!)
   }
 
   isWebSocket() {
@@ -99,7 +99,7 @@ export interface RegisterOptions {
   port?: number
   /**
    * @description CDP Server Port, used for Devtool
-   * @link devtools://devtools/bundled/inspector.html?ws=localhost:${serverPort}
+   * @link devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort}
    * @default 5271
    */
   serverPort?: number

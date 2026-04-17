@@ -33,7 +33,7 @@ register(options)
 ### serverPort
 
 - **Description**: CDP server port for Devtool
-- **Link**: [devtools://devtools/bundled/inspector.html?ws=localhost:${serverPort}](devtools://devtools/bundled/inspector.html?ws=localhost:${serverPort})
+- **Link**: [devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort}](devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort})
 - **Default value**: `5271`
 
 ### autoOpenDevtool

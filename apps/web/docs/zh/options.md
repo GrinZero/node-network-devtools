@@ -33,7 +33,7 @@ register(options)
 ### serverPort
 
 - **描述**: CDP 服务器端口，用于 Devtool
-- **链接**: [devtools://devtools/bundled/inspector.html?ws=localhost:${serverPort}](devtools://devtools/bundled/inspector.html?ws=localhost:${serverPort})
+- **链接**: [devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort}](devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort})
 - **默认值**: `5271`
 
 ### autoOpenDevtool

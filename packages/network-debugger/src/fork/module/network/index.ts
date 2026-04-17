@@ -180,11 +180,7 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
           initialPriority: 'High',
           mixedContentType: 'none',
           ...(request.requestData
-            ? {
-                postData: contentType?.includes('application/json')
-                  ? JSON.stringify(request.requestData)
-                  : request.requestData
-              }
+            ? { postData: request.requestData.toString() }
             : {})
         },
         timestamp: devtool.timestamp,

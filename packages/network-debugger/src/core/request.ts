@@ -22,12 +22,8 @@ function proxyClientRequestFactory(
 ) {
   const actualFn = actualRequest.write
   actualRequest.write = (data: any) => {
-    try {
-      requestDetail.requestData = JSON.parse(data.toString())
-    } catch (err) {
-      requestDetail.requestData = data
-    }
-
+    // 保持原始数据格式，由 DevTools 自行解析展示
+    requestDetail.requestData = data
     return actualFn.bind(actualRequest)(data)
   }
 

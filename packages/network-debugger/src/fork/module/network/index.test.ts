@@ -1000,4 +1000,168 @@ describe('fork/module/network/index.ts', () => {
       expect(mockDevtool.send).toHaveBeenCalled()
     })
   })
+
+  describe('Server-Sent Events (SSE) 支持', () => {
+    test('eventSourceMessage 处理器发送 CDP 消息', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+      registeredHandlers.clear()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: []
+      })
+
+      // 先注册一个请求
+      const testRequest = createTestRequest({
+        id: 'sse-request-id',
+        url: 'http://example.com/sse'
+      })
+
+      const initRequestHandlers = registeredHandlers.get('initRequest')
+      initRequestHandlers![0]({ data: testRequest, id: undefined })
+
+      // 发送 eventSourceMessage
+      const eventSourceHandlers = registeredHandlers.get('eventSourceMessage')
+      expect(eventSourceHandlers).toBeDefined()
+
+      eventSourceHandlers![0]({
+        data: {
+          requestId: 'sse-request-id',
+          eventName: 'message',
+          eventId: '1',
+          data: 'Hello SSE'
+        },
+        id: undefined
+      })
+
+      expect(mockDevtool.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'Network.eventSourceMessageReceived',
+          params: expect.objectContaining({
+            requestId: 'sse-request-id',
+            eventName: 'message',
+            eventId: '1',
+            data: 'Hello SSE'
+          })
+        })
+      )
+    })
+
+    test('eventSourceMessage 处理自定义事件类型', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+      registeredHandlers.clear()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: []
+      })
+
+      // 先注册一个请求
+      const testRequest = createTestRequest({
+        id: 'sse-custom-event-id',
+        url: 'http://example.com/sse'
+      })
+
+      const initRequestHandlers = registeredHandlers.get('initRequest')
+      initRequestHandlers![0]({ data: testRequest, id: undefined })
+
+      // 发送自定义事件类型的 eventSourceMessage
+      const eventSourceHandlers = registeredHandlers.get('eventSourceMessage')
+
+      eventSourceHandlers![0]({
+        data: {
+          requestId: 'sse-custom-event-id',
+          eventName: 'customEvent',
+          eventId: '42',
+          data: '{"status": "complete"}'
+        },
+        id: undefined
+      })
+
+      expect(mockDevtool.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'Network.eventSourceMessageReceived',
+          params: expect.objectContaining({
+            requestId: 'sse-custom-event-id',
+            eventName: 'customEvent',
+            eventId: '42',
+            data: '{"status": "complete"}'
+          })
+        })
+      )
+    })
+
+    test('eventSourceMessage 对未知请求 ID 不发送消息', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+      registeredHandlers.clear()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: []
+      })
+
+      // 不注册请求，直接发送 eventSourceMessage
+      const eventSourceHandlers = registeredHandlers.get('eventSourceMessage')
+
+      eventSourceHandlers![0]({
+        data: {
+          requestId: 'unknown-request-id',
+          eventName: 'message',
+          eventId: '',
+          data: 'test'
+        },
+        id: undefined
+      })
+
+      // 不应该发送 eventSourceMessageReceived
+      const eventSourceCalls = mockDevtool.send.mock.calls.filter(
+        (call: unknown[]) =>
+          (call[0] as { method?: string })?.method === 'Network.eventSourceMessageReceived'
+      )
+      expect(eventSourceCalls.length).toBe(0)
+    })
+
+    test('text/event-stream 类型被识别为 EventSource', async () => {
+      const { networkPlugin } = await import('./index')
+
+      const mockDevtool = createMockDevtool()
+      const mockCore = createMockCore()
+      registeredHandlers.clear()
+
+      networkPlugin({
+        devtool: mockDevtool,
+        core: mockCore,
+        plugins: []
+      })
+
+      const testRequest = createTestRequest({
+        id: 'sse-type-test-id',
+        responseHeaders: { 'content-type': 'text/event-stream' }
+      })
+
+      const endRequestHandlers = registeredHandlers.get('endRequest')
+      endRequestHandlers![0]({ data: testRequest, id: undefined })
+
+      expect(mockDevtool.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'Network.responseReceived',
+          params: expect.objectContaining({
+            type: 'EventSource'
+          })
+        })
+      )
+    })
+  })
 })

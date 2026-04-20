@@ -77,6 +77,45 @@ router.get('/fetch', async (ctx) => {
   ctx.body = data
 })
 
+// Test case 1: text/plain + JSON body
+router.get('/post-text-plain', async (ctx) => {
+  const res = await axios.post(
+    'https://jsonplaceholder.typicode.com/posts',
+    JSON.stringify({ title: 'foo', body: 'bar', userId: 1 }),
+    { headers: { 'Content-Type': 'text/plain' } }
+  )
+  ctx.body = res.data
+})
+
+// Test case 2: application/x-www-form-urlencoded
+router.get('/post-form', async (ctx) => {
+  const res = await axios.post(
+    'https://jsonplaceholder.typicode.com/posts',
+    'title=foo&body=bar&userId=1',
+    { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+  )
+  ctx.body = res.data
+})
+
+// Test case 3: pure text body
+router.get('/post-pure-text', async (ctx) => {
+  const res = await axios.post(
+    'https://jsonplaceholder.typicode.com/posts',
+    'This is a plain text message',
+    { headers: { 'Content-Type': 'text/plain' } }
+  )
+  ctx.body = res.data
+})
+
+// Test case 4: Buffer body
+router.get('/post-buffer', async (ctx) => {
+  const buffer = Buffer.from(JSON.stringify({ title: 'buffer', body: 'test', userId: 1 }))
+  const res = await axios.post('https://jsonplaceholder.typicode.com/posts', buffer, {
+    headers: { 'Content-Type': 'application/json' }
+  })
+  ctx.body = res.data
+})
+
 // SSE test endpoint - server side
 router.get('/sse-server', async (ctx) => {
   ctx.set('Content-Type', 'text/event-stream')
@@ -90,7 +129,9 @@ router.get('/sse-server', async (ctx) => {
   let count = 0
   const interval = setInterval(() => {
     count++
-    res.write(`event: message\nid: ${count}\ndata: {"count": ${count}, "time": "${new Date().toISOString()}"}\n\n`)
+    res.write(
+      `event: message\nid: ${count}\ndata: {"count": ${count}, "time": "${new Date().toISOString()}"}\n\n`
+    )
     if (count >= 5) {
       clearInterval(interval)
       res.end()
@@ -102,18 +143,18 @@ router.get('/sse-server', async (ctx) => {
 router.get('/sse-fetch', async (ctx) => {
   // Fetch SSE from our own server
   const response = await fetch('http://localhost:3001/sse-server')
-  
+
   // Consume the stream to capture events
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let result = ''
-  
+
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
     result += decoder.decode(value, { stream: true })
   }
-  
+
   ctx.body = { message: 'SSE stream consumed', data: result }
 })
 

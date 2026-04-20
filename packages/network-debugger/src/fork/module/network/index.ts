@@ -182,13 +182,7 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
           headers: headerPipe.getData(),
           initialPriority: 'High',
           mixedContentType: 'none',
-          ...(request.requestData
-            ? {
-                postData: contentType?.includes('application/json')
-                  ? JSON.stringify(request.requestData)
-                  : request.requestData
-              }
-            : {})
+          ...(request.requestData ? { postData: request.requestData.toString() } : {})
         },
         timestamp: devtool.timestamp,
         wallTime: request.requestStartTime,

@@ -34,7 +34,7 @@ describe('Property-Based Tests', () => {
     test('无效 JSON 应该返回 fallback 值', () => {
       fc.assert(
         fc.property(
-          fc.string().filter((s) => {
+          fc.string().filter((s: string) => {
             try {
               JSON.parse(s)
               return false // 有效 JSON，过滤掉
@@ -81,7 +81,7 @@ describe('Property-Based Tests', () => {
       fc.assert(
         fc.property(
           fc.dictionary(
-            fc.string({ minLength: 1 }).filter((s) => !s.includes('\0')),
+            fc.string({ minLength: 1 }).filter((s: string) => !s.includes('\0')),
             fc.string().filter((s) => !s.includes('\0'))
           ),
           (headers) => {
@@ -181,15 +181,19 @@ describe('Property-Based Tests', () => {
 
     test('不同输入应该产生不同 hash（高概率）', () => {
       fc.assert(
-        fc.property(fc.string({ minLength: 1 }), fc.string({ minLength: 1 }), (input1, input2) => {
-          fc.pre(input1 !== input2) // 前置条件：输入不同
+        fc.property(
+          fc.string({ minLength: 1 }),
+          fc.string({ minLength: 1 }),
+          (input1: string, input2: string) => {
+            fc.pre(input1 !== input2) // 前置条件：输入不同
 
-          const hash1 = generateHash(input1)
-          const hash2 = generateHash(input2)
+            const hash1 = generateHash(input1)
+            const hash2 = generateHash(input2)
 
-          // 不同输入应该产生不同 hash（碰撞概率极低）
-          expect(hash1).not.toBe(hash2)
-        }),
+            // 不同输入应该产生不同 hash（碰撞概率极低）
+            expect(hash1).not.toBe(hash2)
+          }
+        ),
         { numRuns: 50 }
       )
     })
@@ -216,9 +220,9 @@ describe('Property-Based Tests', () => {
     test('header 查询应该大小写不敏感', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1 }).filter((s) => /^[a-zA-Z][a-zA-Z0-9-]*$/.test(s)),
+          fc.string({ minLength: 1 }).filter((s: string) => /^[a-zA-Z][a-zA-Z0-9-]*$/.test(s)),
           fc.string(),
-          (headerName, headerValue) => {
+          (headerName: string, headerValue: string) => {
             const headers = { [headerName]: headerValue }
             const pipe = new RequestHeaderPipe(headers)
 
@@ -240,13 +244,13 @@ describe('Property-Based Tests', () => {
     test('混合大小写的 header 名称应该正确处理', () => {
       fc.assert(
         fc.property(
-          fc.string({ minLength: 1 }).filter((s) => /^[a-zA-Z][a-zA-Z0-9-]*$/.test(s)),
+          fc.string({ minLength: 1 }).filter((s: string) => /^[a-zA-Z][a-zA-Z0-9-]*$/.test(s)),
           fc.string(),
-          (headerName, headerValue) => {
+          (headerName: string, headerValue: string) => {
             // 创建混合大小写的名称
             const mixedCase = headerName
               .split('')
-              .map((c, i) => (i % 2 === 0 ? c.toUpperCase() : c.toLowerCase()))
+              .map((c: string, i: number) => (i % 2 === 0 ? c.toUpperCase() : c.toLowerCase()))
               .join('')
 
             const headers = { [headerName]: headerValue }
@@ -295,7 +299,7 @@ describe('Property-Based Tests', () => {
     describe('Property 15: requestId 唯一性', () => {
       test('生成的 requestId 应该唯一', () => {
         fc.assert(
-          fc.property(fc.integer({ min: 10, max: 50 }), (count) => {
+          fc.property(fc.integer({ min: 10, max: 50 }), (count: number) => {
             const requestIds = new Set<string>()
 
             for (let i = 0; i < count; i++) {
@@ -314,11 +318,11 @@ describe('Property-Based Tests', () => {
         fc.assert(
           fc.property(
             fc.array(fc.nat({ max: 1000 }), { minLength: 2, maxLength: 10 }),
-            (deltas) => {
+            (deltas: number[]) => {
               let timestamp = Date.now()
               const timestamps: number[] = [timestamp]
 
-              deltas.forEach((delta) => {
+              deltas.forEach((delta: number) => {
                 timestamp += delta
                 timestamps.push(timestamp)
               })
@@ -337,7 +341,7 @@ describe('Property-Based Tests', () => {
     describe('Property 18: CDP 响应格式', () => {
       test('响应 id 应该与请求 id 匹配', () => {
         fc.assert(
-          fc.property(fc.integer({ min: 1, max: 10000 }), (requestId) => {
+          fc.property(fc.integer({ min: 1, max: 10000 }), (requestId: number) => {
             const request = { id: requestId, method: 'Network.getResponseBody' }
             const response = { id: requestId, result: {} }
 
@@ -353,7 +357,7 @@ describe('Property-Based Tests', () => {
             fc.integer({ min: 1, max: 10000 }),
             fc.integer({ min: -32700, max: -32600 }),
             fc.string(),
-            (id, code, message) => {
+            (id: number, code: number, message: string) => {
               const errorResponse = {
                 id,
                 error: { code, message }

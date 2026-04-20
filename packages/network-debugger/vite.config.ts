@@ -76,5 +76,9 @@ export default defineConfig(({ mode }) => ({
       }
     }
   },
-  plugins: [dts()]
+  plugins: [
+    dts({
+      tsconfigPath: resolve(__dirname, 'tsconfig.build.json')
+    })
+  ]
 }))

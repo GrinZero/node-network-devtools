@@ -39,6 +39,8 @@ export function fetchProxyFactory(fetchFn: typeof fetch, mainProcess: MainProces
     }
     requestDetail.requestData = options?.body
 
+    requestDetail.loadCallFrames()
+
     const result = fetchFn(request as string | Request, options)
       .then(fetchResponseHandlerFactory(requestDetail, mainProcess))
       .catch(fetchErrorHandlerFactory(requestDetail, mainProcess))
@@ -80,8 +82,11 @@ async function handleEventStreamResponse(
   let buffer = ''
   const allChunks: Uint8Array[] = []
 
-  // Send initial response info
-  mainProcess.sendRequest('updateRequest', requestDetail)
+  // Send responseReceived first (type: EventSource) so DevTools knows this is an SSE request
+  mainProcess.send({
+    type: 'eventSourceResponseReceived',
+    data: requestDetail
+  })
 
   try {
     while (true) {

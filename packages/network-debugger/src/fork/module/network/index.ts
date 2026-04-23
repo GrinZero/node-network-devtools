@@ -197,6 +197,36 @@ export const networkPlugin = createPlugin('network', ({ devtool, core }) => {
     endRequest(request)
   })
 
+  // Handle SSE response received - send responseReceived with type: EventSource before streaming messages
+  useHandler<RequestDetail>('eventSourceResponseReceived', ({ data }) => {
+    const request = new RequestDetail(data)
+    requests[request.id] = request
+    devtool.updateTimestamp()
+    const headers = new RequestHeaderPipe(request.responseHeaders)
+    const contentType = headers.getHeader('content-type') || 'text/event-stream'
+
+    devtool.send({
+      method: 'Network.responseReceived',
+      params: {
+        requestId: request.id,
+        frameId,
+        loaderId,
+        timestamp: devtool.timestamp,
+        type: 'EventSource',
+        response: {
+          url: request.url,
+          status: request.responseStatusCode,
+          statusText: request.responseStatusCode === 200 ? 'OK' : '',
+          headers: request.responseHeaders,
+          connectionReused: false,
+          encodedDataLength: 0,
+          charset: 'utf-8',
+          mimeType: toMimeType(contentType)
+        }
+      }
+    })
+  })
+
   useHandler<{
     id: string
     rawData: Array<number>

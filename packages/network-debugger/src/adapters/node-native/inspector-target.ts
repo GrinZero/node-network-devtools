@@ -61,8 +61,12 @@ function requestJson(url: string, timeoutMs: number): Promise<unknown> {
         // `end` means the payload is complete, not that the underlying socket
         // has left the Inspector server. Wait for actual close before allowing
         // an owning adapter to call the synchronous inspector.close().
-        if (socket.destroyed) settle()
-        else socket.once('close', settle)
+        if (socket.destroyed) {
+          settle()
+        } else {
+          socket.once('close', settle)
+          socket.destroy()
+        }
       })
     })
 

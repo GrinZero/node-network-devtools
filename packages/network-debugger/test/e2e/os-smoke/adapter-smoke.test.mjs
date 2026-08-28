@@ -33,8 +33,12 @@ function requestJson(url, timeoutMs = 3_000) {
         }
 
         const settle = () => (failure ? reject(failure) : resolve(result))
-        if (socket.destroyed) settle()
-        else socket.once('close', settle)
+        if (socket.destroyed) {
+          settle()
+        } else {
+          socket.once('close', settle)
+          socket.destroy()
+        }
       })
     })
     request.setTimeout(timeoutMs, () => request.destroy(new Error(`Timed out requesting ${url}`)))

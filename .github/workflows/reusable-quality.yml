@@ -244,7 +244,7 @@ jobs:
         with:
           name: ${{ needs.package.outputs.artifact_name }}
           path: ${{ runner.temp }}/npm-package
-      - name: Run Native and Legacy 20 times in one controller process
+      - name: Run isolated Native and Legacy controller for 20 rounds each
         env:
           NND_PACK_DIR: ${{ runner.temp }}/npm-package
           NND_OS_SMOKE_ROUNDS: 20
@@ -253,7 +253,7 @@ jobs:
           ALL_PROXY: ''
           NO_PROXY: 127.0.0.1,localhost
         run: >-
-          node --experimental-network-inspection --test --test-concurrency=1
+          node --test --test-concurrency=1
           packages/network-debugger/test/e2e/os-smoke/adapter-smoke.test.mjs
 
   frontend:

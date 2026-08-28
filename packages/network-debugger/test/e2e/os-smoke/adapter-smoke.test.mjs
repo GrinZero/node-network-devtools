@@ -1,121 +1,84 @@
 import assert from 'node:assert/strict'
-import http from 'node:http'
-import { createRequire } from 'node:module'
+import { execFile } from 'node:child_process'
 import test from 'node:test'
-import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 import { installPackedPackage, removePackedInstallation } from '../pack/packed-package.mjs'
 
+const execFileAsync = promisify(execFile)
 const ROUNDS = Number(process.env.NND_OS_SMOKE_ROUNDS ?? 20)
-const TEST_TIMEOUT_MS = 240_000
+const CHILD_TIMEOUT_MS = 240_000
+const TEST_TIMEOUT_MS = 300_000
+const RESULT_PREFIX = 'NND_OS_SMOKE_RESULT '
+const CONTROLLER_PATH = fileURLToPath(new URL('./adapter-smoke-controller.mjs', import.meta.url))
 
 assert.ok(Number.isInteger(ROUNDS) && ROUNDS >= 20, 'OS smoke must run at least 20 rounds')
 
-function requestJson(url, timeoutMs = 3_000) {
-  return new Promise((resolve, reject) => {
-    const request = http.get(url, { agent: false }, (response) => {
-      const chunks = []
-      const socket = response.socket
-      response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
-      response.once('error', reject)
-      response.once('end', () => {
-        const text = Buffer.concat(chunks).toString('utf8')
-        let result
-        let failure
-        if (response.statusCode !== 200) {
-          failure = new Error(`${url} returned HTTP ${response.statusCode}: ${text}`)
-        } else {
-          try {
-            result = JSON.parse(text)
-          } catch (error) {
-            failure = new Error(`${url} returned invalid JSON: ${text}`, { cause: error })
-          }
-        }
-
-        const settle = () => (failure ? reject(failure) : resolve(result))
-        if (socket.destroyed) {
-          settle()
-        } else {
-          socket.once('close', settle)
-          socket.destroy()
-        }
-      })
-    })
-    request.setTimeout(timeoutMs, () => request.destroy(new Error(`Timed out requesting ${url}`)))
-    request.once('error', reject)
-  })
+async function runIsolatedController(installation) {
+  try {
+    return await execFileAsync(
+      process.execPath,
+      ['--experimental-network-inspection', CONTROLLER_PATH],
+      {
+        cwd: installation.root,
+        env: {
+          ...process.env,
+          NND_OS_SMOKE_INSTALL_ROOT: installation.root,
+          NND_OS_SMOKE_ROUNDS: String(ROUNDS)
+        },
+        timeout: CHILD_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024
+      }
+    )
+  } catch (error) {
+    const output = [error?.stdout, error?.stderr].filter(Boolean).join('\n')
+    throw new Error(`Isolated OS smoke controller failed:\n${output}`, { cause: error })
+  }
 }
 
-async function assertEndpointClosed(url) {
-  let lastResponse
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    try {
-      lastResponse = await requestJson(url, 500)
-    } catch {
-      return
-    }
-    await new Promise((resolve) => setTimeout(resolve, 50))
-  }
-  assert.fail(
-    `target endpoint remained open after dispose: ${url}\n${JSON.stringify(lastResponse)}`
+function parseResult(stdout) {
+  const resultLines = stdout.split(/\r?\n/).filter((line) => line.startsWith(RESULT_PREFIX))
+
+  assert.equal(
+    resultLines.length,
+    1,
+    `expected one structured OS smoke result, received ${resultLines.length}:\n${stdout}`
   )
-}
-
-async function runRounds(register, mode) {
-  const controllerPid = process.pid
-  for (let round = 1; round <= ROUNDS; round += 1) {
-    let registration
-    let target
-    try {
-      registration = register({
-        mode,
-        inspector: { host: '127.0.0.1', port: 0 },
-        devtools: { open: false },
-        legacy: { serverPort: 0 }
-      })
-      const ready = await registration.ready
-      target = ready.target
-      assert.equal(process.pid, controllerPid, `${mode} round ${round} changed controller process`)
-      assert.equal(ready.mode, mode, `${mode} round ${round} selected another adapter`)
-      assert.equal(registration.status().state, 'ready')
-      assert.match(target.discoveryUrl, /^http:\/\/127\.0\.0\.1:\d+\/json\/list$/)
-      assert.match(target.webSocketDebuggerUrl, /^ws:\/\/127\.0\.0\.1:\d+\//)
-
-      const targets = await requestJson(target.discoveryUrl)
-      assert.ok(Array.isArray(targets), `${mode} round ${round} discovery must be an array`)
-      assert.ok(
-        targets.some((candidate) => candidate.id === target.id),
-        `${mode} round ${round} target is absent from discovery`
-      )
-    } finally {
-      await registration?.dispose()
-    }
-
-    assert.equal(registration.status().state, 'disposed')
-    await assertEndpointClosed(target.discoveryUrl)
-  }
+  return JSON.parse(resultLines[0].slice(RESULT_PREFIX.length))
 }
 
 test(
-  'packed Native and Legacy adapters each survive 20 rounds in one process',
+  'an isolated packed-package controller survives 20 Native and Legacy rounds',
   { timeout: TEST_TIMEOUT_MS },
-  async (t) => {
-    assert.ok(
-      process.execArgv.some((argument) => argument.startsWith('--experimental-network-inspection')),
-      'start this controller with --experimental-network-inspection'
-    )
-
+  async () => {
     const installation = await installPackedPackage('nnd-os-smoke-')
-    t.after(() => removePackedInstallation(installation))
-    const consumerRequire = createRequire(join(installation.root, 'consumer.cjs'))
-    const { register } = consumerRequire('node-network-devtools')
-    assert.equal(typeof register, 'function')
 
-    await t.test(`Native adapter: ${ROUNDS} consecutive rounds`, () =>
-      runRounds(register, 'native')
-    )
-    await t.test(`Legacy adapter: ${ROUNDS} consecutive rounds`, () =>
-      runRounds(register, 'legacy')
-    )
+    try {
+      // Only the child loads the installed package. Waiting for execFile to
+      // close before cleanup avoids Windows file locks from loaded modules.
+      const { stdout } = await runIsolatedController(installation)
+      const result = parseResult(stdout)
+
+      assert.equal(result.schemaVersion, 1)
+      assert.notEqual(result.controllerPid, process.pid)
+      assert.deepEqual(result.package, {
+        name: installation.manifest.name,
+        version: installation.manifest.version
+      })
+      assert.equal(result.rounds, ROUNDS)
+
+      for (const mode of ['native', 'legacy']) {
+        assert.deepEqual(result.adapters[mode], {
+          rounds: ROUNDS,
+          targetsDiscovered: ROUNDS,
+          endpointsClosed: ROUNDS
+        })
+      }
+    } finally {
+      await removePackedInstallation(installation)
+    }
   }
 )

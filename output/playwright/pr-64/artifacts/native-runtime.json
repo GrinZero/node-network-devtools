@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "productCommit": "449d47db89109e826eb0e7e0584777365eac3f9b",
+  "package": {
+    "name": "node-network-devtools",
+    "version": "2.0.0"
+  },
+  "tarballSha256": "e97dc360d2fcd5d141b13bca490f603b802dc7fe94f3b6a06a690c7a7f48e2ac",
+  "node": "v24.16.0",
+  "platform": "darwin-arm64",
+  "backend": "native",
+  "selectedMode": "native",
+  "fallbackReason": null,
+  "capabilities": {
+    "http": true,
+    "https": true,
+    "fetch": true,
+    "http2": false,
+    "responseBody": true,
+    "requestBody": false,
+    "websocketLifecycle": true,
+    "websocketFrames": false,
+    "sseMessages": false,
+    "initiator": true
+  },
+  "target": {
+    "id": "c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "title": "output/playwright/pr-64/manual-evidence-server.mjs",
+    "type": "node",
+    "url": "file://<evidence-root>/manual-evidence-server.mjs",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "devtoolsFrontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "devtoolsFrontendUrlCompat": "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "discoveryUrl": "http://127.0.0.1:58927/json/list"
+  },
+  "discovery": [
+    {
+      "description": "node.js instance",
+      "devtoolsFrontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+      "devtoolsFrontendUrlCompat": "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+      "faviconUrl": "https://nodejs.org/static/images/favicons/favicon.ico",
+      "id": "c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+      "title": "output/playwright/pr-64/manual-evidence-server.mjs",
+      "type": "node",
+      "url": "file://<evidence-root>/manual-evidence-server.mjs",
+      "webSocketDebuggerUrl": "ws://127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5"
+    }
+  ],
+  "discoveryContract": {
+    "list": {
+      "ok": true,
+      "targetCount": 1,
+      "targetIdMatches": true
+    },
+    "version": {
+      "ok": true,
+      "browser": "node.js/v24.16.0",
+      "protocolVersion": "1.1"
+    },
+    "protocol": {
+      "ok": true,
+      "domainCount": 14,
+      "networkDomain": true,
+      "networkCommandCount": 6,
+      "networkEventCount": 8
+    }
+  },
+  "frontendUrl": "http://127.0.0.1:58933/devtools/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5&hl=en-US",
+  "controlUrl": "http://127.0.0.1:58934",
+  "originalFunctionsPreserved": {
+    "fetch": true,
+    "httpRequest": true,
+    "httpsRequest": true
+  },
+  "sourceSha256": "46f81eb2930040a31f402cf4cb113758628eb72c9db27617babba1d3df31af27"
+}

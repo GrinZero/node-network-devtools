@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "testRunId": "pr-64-manual-acceptance-2026-08-28",
+  "pullRequest": "https://github.com/GrinZero/node-network-devtools/pull/64",
+  "testedProductCommit": "449d47db89109e826eb0e7e0584777365eac3f9b",
+  "package": {
+    "name": "node-network-devtools",
+    "version": "2.0.0",
+    "packedFileCount": 190,
+    "tarballSha256": "e97dc360d2fcd5d141b13bca490f603b802dc7fe94f3b6a06a690c7a7f48e2ac"
+  },
+  "environment": {
+    "node": "v24.16.0",
+    "compatibilityProbeNodes": ["v22.22.3", "v24.16.0", "v26.8.1"],
+    "platform": "darwin-arm64",
+    "browser": "Chrome for Testing 151.0.7922.34",
+    "playwrightCli": "0.1.18",
+    "playwrightEngine": "1.63.0-alpha-2026-08-05",
+    "timezone": "Asia/Shanghai",
+    "date": "2026-08-28"
+  },
+  "harness": {
+    "manualEvidenceServerSha256": "46f81eb2930040a31f402cf4cb113758628eb72c9db27617babba1d3df31af27"
+  },
+  "result": {
+    "status": "PASS",
+    "passed": 14,
+    "failed": 0,
+    "total": 14,
+    "screenshots": 26,
+    "structuredArtifacts": 17,
+    "reproductionHarnesses": 5,
+    "testTlsInputs": 2
+  },
+  "cases": [
+    {
+      "id": "MT-01",
+      "title": "Exact package version and Native doctor",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-01-cli-version-doctor-native.png",
+        "artifacts/cli-manual-results.json"
+      ]
+    },
+    {
+      "id": "MT-02",
+      "title": "Zero-code CLI modes, conflict, replay, and exact-target open",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-02-cli-zero-code-and-conflict.png",
+        "artifacts/cli-manual-results.json"
+      ]
+    },
+    {
+      "id": "MT-03",
+      "title": "Native registration and capability disclosure",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-03-native-runtime-and-capabilities.png",
+        "artifacts/native-runtime.json"
+      ]
+    },
+    {
+      "id": "MT-04",
+      "title": "Native standard CDP discovery contract",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-03-native-runtime-and-capabilities.png",
+        "screenshots/MT-04-native-version.png",
+        "artifacts/native-runtime.json"
+      ]
+    },
+    {
+      "id": "MT-05",
+      "title": "Native HTTP, HTTPS, and Fetch in official DevTools",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-05-native-devtools-network-list.png",
+        "screenshots/MT-05-native-fetch-headers.png",
+        "screenshots/MT-05-native-fetch-response.png",
+        "artifacts/native-events.ndjson"
+      ]
+    },
+    {
+      "id": "MT-06",
+      "title": "Native DevTools reload and reconnect",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-06-native-devtools-reload-reconnect.png",
+        "artifacts/native-session-manifest.json"
+      ]
+    },
+    {
+      "id": "MT-07",
+      "title": "Auto-to-Legacy selection and capability disclosure",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-07-legacy-runtime-and-capabilities.png",
+        "artifacts/legacy-runtime.json"
+      ]
+    },
+    {
+      "id": "MT-08",
+      "title": "Legacy standard CDP discovery contract",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-07-legacy-runtime-and-capabilities.png",
+        "screenshots/MT-08-legacy-version.png",
+        "artifacts/legacy-runtime.json"
+      ]
+    },
+    {
+      "id": "MT-09",
+      "title": "Legacy HTTP, HTTPS, and Fetch details in official DevTools",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-09-legacy-devtools-network-list.png",
+        "screenshots/MT-09-legacy-fetch-payload.png",
+        "screenshots/MT-09-legacy-fetch-response.png",
+        "artifacts/legacy-events.ndjson"
+      ]
+    },
+    {
+      "id": "MT-10",
+      "title": "Legacy HTTP and Fetch mocking with zero origin leakage",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-10-legacy-mock-http-response.png",
+        "screenshots/MT-10-legacy-mock-fetch-response.png",
+        "artifacts/legacy-finalize-summary.json"
+      ]
+    },
+    {
+      "id": "MT-11",
+      "title": "Native and Legacy SSE/WebSocket capability boundaries",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-11-native-websocket-lifecycle.png",
+        "screenshots/MT-11-legacy-sse-eventstream.png",
+        "screenshots/MT-11-legacy-websocket-messages.png",
+        "artifacts/native-finalize-summary.json",
+        "artifacts/legacy-finalize-summary.json"
+      ]
+    },
+    {
+      "id": "MT-12",
+      "title": "Session, HAR, Replay, and Trace on both backends",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-12-native-session-har-replay-trace.png",
+        "screenshots/MT-12-legacy-session-har-replay-trace.png",
+        "artifacts/cli-manual-results.json",
+        "artifacts/native-finalize-summary.json",
+        "artifacts/legacy-finalize-summary.json",
+        "artifacts/native-session.har",
+        "artifacts/legacy-session.har"
+      ]
+    },
+    {
+      "id": "MT-13",
+      "title": "Failed lifecycle and Native HTTP/2 capability boundary",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-13-native-failed-request.png",
+        "screenshots/MT-13-legacy-failed-request.png",
+        "screenshots/MT-13-native-boundary-assertions.png",
+        "screenshots/MT-13-legacy-boundary-assertions.png",
+        "artifacts/native-http2-probe.json",
+        "artifacts/native-finalize-summary.json",
+        "artifacts/legacy-finalize-summary.json"
+      ]
+    },
+    {
+      "id": "MT-14",
+      "title": "Dispose and closed-endpoint verification",
+      "status": "PASS",
+      "evidence": [
+        "screenshots/MT-14-native-dispose-cleanup.png",
+        "screenshots/MT-14-legacy-dispose-cleanup.png",
+        "artifacts/native-dispose-summary.json",
+        "artifacts/legacy-dispose-summary.json"
+      ]
+    }
+  ],
+  "notes": [
+    "All business traffic was loopback-only.",
+    "Native requestBody, websocketFrames, and sseMessages remain false on the primary Node 24 run and were not represented as supported.",
+    "Native HTTP/2 is advertised only on the verified Node 22.20+ 22.x line; the expected Node 24/26 upstream crash reproductions prove why the capability is withheld there.",
+    "The CLI --open OS launch was redirected to an exact-target CDP verifier; separate screenshots prove a real visible connection to the official Chromium DevTools frontend.",
+    "Local filesystem prefixes were redacted from retained text, and raw discovery screenshots containing local file URLs were excluded.",
+    "Screenshots satisfy the requested visual-evidence option; no video is committed."
+  ]
+}

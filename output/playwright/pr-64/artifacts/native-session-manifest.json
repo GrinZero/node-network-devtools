@@ -1,0 +1,354 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "96007c32-4e84-481a-8012-953ccaac8a57",
+  "state": "completed",
+  "createdAt": "2026-08-28T07:46:29.081Z",
+  "target": {
+    "id": "c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "title": "output/playwright/pr-64/manual-evidence-server.mjs",
+    "type": "node",
+    "url": "file://<evidence-root>/manual-evidence-server.mjs",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "devtoolsFrontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "devtoolsFrontendUrlCompat": "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=127.0.0.1:58927/c91298d7-d6f3-4ef5-8a54-f6ef4a0393b5",
+    "discoveryUrl": "http://127.0.0.1:58927/json/list"
+  },
+  "files": {
+    "events": "events.ndjson",
+    "bodies": "bodies"
+  },
+  "completedAt": "2026-08-28T07:49:48.484Z",
+  "stats": {
+    "eventCount": 24,
+    "requestCount": 9,
+    "bodyCount": 6,
+    "bodyErrorCount": 0,
+    "failedRequestCount": 1
+  },
+  "requestIndex": {
+    "node-network-event-1": {
+      "requestId": "node-network-event-1",
+      "firstSequence": 1,
+      "requestTimestamp": 86.3044,
+      "wallTime": 1787903275119,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:58925/get?token=native-http-get-01",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:58925"
+        },
+        "hasPostData": false
+      },
+      "responseTimestamp": 86.3068,
+      "response": {
+        "url": "http://127.0.0.1:58925/get?token=native-http-get-01",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": "38",
+          "x-manual-case": "native-http-get-01",
+          "date": "Fri, 28 Aug 2026 07:47:55 GMT",
+          "connection": "keep-alive",
+          "keep-alive": "timeout=5"
+        },
+        "mimeType": "text/plain",
+        "charset": "utf-8"
+      },
+      "finishedTimestamp": 86.3071
+    },
+    "node-network-event-2": {
+      "requestId": "node-network-event-2",
+      "firstSequence": 4,
+      "requestTimestamp": 90.2372,
+      "wallTime": 1787903279052,
+      "resourceType": "Other",
+      "request": {
+        "url": "https://127.0.0.1:58926/secure-get?token=native-https-get-02",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:58926"
+        },
+        "hasPostData": false
+      },
+      "responseTimestamp": 90.245,
+      "response": {
+        "url": "https://127.0.0.1:58926/secure-get?token=native-https-get-02",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": "41",
+          "x-manual-case": "native-https-get-02",
+          "date": "Fri, 28 Aug 2026 07:47:59 GMT",
+          "connection": "keep-alive",
+          "keep-alive": "timeout=5"
+        },
+        "mimeType": "text/plain",
+        "charset": "utf-8"
+      },
+      "finishedTimestamp": 90.2455
+    },
+    "node-network-event-3": {
+      "requestId": "node-network-event-3",
+      "firstSequence": 7,
+      "requestTimestamp": 94.2859,
+      "wallTime": 1787903283101,
+      "resourceType": "Fetch",
+      "request": {
+        "url": "http://127.0.0.1:58925/post?token=native-fetch-post-03",
+        "method": "POST",
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "x-manual-case": "native-fetch-post-03",
+          "accept": "*/*",
+          "accept-language": "*",
+          "sec-fetch-mode": "cors",
+          "user-agent": "node",
+          "accept-encoding": "gzip, deflate"
+        },
+        "hasPostData": true
+      },
+      "responseTimestamp": 94.2956,
+      "response": {
+        "url": "http://127.0.0.1:58925/post?token=native-fetch-post-03",
+        "status": 201,
+        "statusText": "Created",
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": "89",
+          "x-manual-case": "native-fetch-post-03",
+          "Date": "Fri, 28 Aug 2026 07:48:03 GMT",
+          "Connection": "keep-alive",
+          "Keep-Alive": "timeout=5"
+        },
+        "mimeType": "application/json",
+        "charset": "utf-8"
+      },
+      "finishedTimestamp": 94.296
+    },
+    "node-network-event-4": {
+      "requestId": "node-network-event-4",
+      "firstSequence": 10,
+      "requestTimestamp": 98.2512,
+      "wallTime": 1787903287066,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:58925/trace?token=native-trace-04",
+        "method": "GET",
+        "headers": {
+          "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          "tracestate": "vendor=manual-pr64",
+          "host": "127.0.0.1:58925"
+        },
+        "hasPostData": false
+      },
+      "trace": {
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "version": "00",
+        "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "parentId": "00f067aa0ba902b7",
+        "traceFlags": "01",
+        "sampled": true,
+        "tracestate": "vendor=manual-pr64"
+      },
+      "responseTimestamp": 98.2539,
+      "response": {
+        "url": "http://127.0.0.1:58925/trace?token=native-trace-04",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": "133",
+          "date": "Fri, 28 Aug 2026 07:48:07 GMT",
+          "connection": "keep-alive",
+          "keep-alive": "timeout=5"
+        },
+        "mimeType": "application/json",
+        "charset": "utf-8"
+      },
+      "finishedTimestamp": 98.2542
+    },
+    "node-network-event-5": {
+      "requestId": "node-network-event-5",
+      "firstSequence": 13,
+      "requestTimestamp": 102.21,
+      "wallTime": 1787903291025,
+      "request": {
+        "url": "http://127.0.0.1:58925/reset?token=native-failed-05",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:58925"
+        },
+        "hasPostData": false
+      },
+      "finishedTimestamp": 102.212,
+      "failure": {
+        "errorText": "socket hang up"
+      }
+    },
+    "node-network-event-6": {
+      "requestId": "node-network-event-6",
+      "firstSequence": 15,
+      "requestTimestamp": 106.193,
+      "wallTime": 1787903295008,
+      "resourceType": "Fetch",
+      "request": {
+        "url": "http://127.0.0.1:58925/sse?token=native-sse-06",
+        "method": "GET",
+        "headers": {
+          "accept": "*/*",
+          "accept-language": "*",
+          "sec-fetch-mode": "cors",
+          "user-agent": "node",
+          "accept-encoding": "gzip, deflate"
+        },
+        "hasPostData": false
+      },
+      "responseTimestamp": 106.198,
+      "response": {
+        "url": "http://127.0.0.1:58925/sse?token=native-sse-06",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "text/event-stream; charset=utf-8",
+          "content-length": "81",
+          "cache-control": "no-cache",
+          "Date": "Fri, 28 Aug 2026 07:48:15 GMT",
+          "Connection": "keep-alive",
+          "Keep-Alive": "timeout=5"
+        },
+        "mimeType": "text/event-stream",
+        "charset": "utf-8"
+      },
+      "finishedTimestamp": 106.198
+    },
+    "node-network-event-7": {
+      "requestId": "node-network-event-7",
+      "firstSequence": 18,
+      "requestTimestamp": 110.152,
+      "wallTime": 1787903298967,
+      "request": {
+        "url": "http://127.0.0.1:58925/websocket?token=native-websocket-07",
+        "method": "GET",
+        "headers": {
+          "sec-websocket-key": "iVtSkmOz5zD/H90P5l+npg==",
+          "sec-websocket-version": "13",
+          "sec-websocket-extensions": "permessage-deflate; client_max_window_bits",
+          "accept": "*/*",
+          "accept-language": "*",
+          "sec-fetch-mode": "websocket",
+          "user-agent": "node",
+          "pragma": "no-cache",
+          "cache-control": "no-cache",
+          "accept-encoding": "gzip, deflate"
+        },
+        "hasPostData": false
+      }
+    },
+    "node-network-event-8": {
+      "requestId": "node-network-event-8",
+      "firstSequence": 19
+    },
+    "node-network-event-9": {
+      "requestId": "node-network-event-9",
+      "firstSequence": 22,
+      "requestTimestamp": 186.86,
+      "wallTime": 1787903375674,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:58925/get?token=native-http-get-08",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:58925"
+        },
+        "hasPostData": false
+      },
+      "responseTimestamp": 186.862,
+      "response": {
+        "url": "http://127.0.0.1:58925/get?token=native-http-get-08",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": "38",
+          "x-manual-case": "native-http-get-08",
+          "date": "Fri, 28 Aug 2026 07:49:35 GMT",
+          "connection": "keep-alive",
+          "keep-alive": "timeout=5"
+        },
+        "mimeType": "text/plain",
+        "charset": "utf-8"
+      },
+      "finishedTimestamp": 186.863
+    }
+  },
+  "bodyIndex": {
+    "node-network-event-1": {
+      "requestId": "node-network-event-1",
+      "path": "bodies/31cc118298853420-8c7e40e0ebf9259cbe9ca6193c5963e56e6cfe3cb357c8771e779d74ee374208.body",
+      "sha256": "8c7e40e0ebf9259cbe9ca6193c5963e56e6cfe3cb357c8771e779d74ee374208",
+      "byteLength": 38,
+      "base64Encoded": false,
+      "mimeType": "text/plain"
+    },
+    "node-network-event-2": {
+      "requestId": "node-network-event-2",
+      "path": "bodies/e83ceaae23523325-1f1c69670cc5d899a65e5b968b2275f0d41e77d46ea3b50a62a3fa611201d6b4.body",
+      "sha256": "1f1c69670cc5d899a65e5b968b2275f0d41e77d46ea3b50a62a3fa611201d6b4",
+      "byteLength": 41,
+      "base64Encoded": false,
+      "mimeType": "text/plain"
+    },
+    "node-network-event-3": {
+      "requestId": "node-network-event-3",
+      "path": "bodies/6ed405c68abbc3e2-f607b5ba8e0e9dd7ac298b7e45424e59d2cdcb21d620d9dc3aabac6ec089a198.body",
+      "sha256": "f607b5ba8e0e9dd7ac298b7e45424e59d2cdcb21d620d9dc3aabac6ec089a198",
+      "byteLength": 89,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "node-network-event-4": {
+      "requestId": "node-network-event-4",
+      "path": "bodies/98fa223a6be7aac1-28b7171e7edc8622367ffe1a9d56d463e5c79846041266e3d122b03a7121622a.body",
+      "sha256": "28b7171e7edc8622367ffe1a9d56d463e5c79846041266e3d122b03a7121622a",
+      "byteLength": 133,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "node-network-event-6": {
+      "requestId": "node-network-event-6",
+      "path": "bodies/560ae859abcea7a8-b85d7e9db80dcd113d5b1b870dbfe8480f4b087a6c51343f64fb107fda7eecfb.body",
+      "sha256": "b85d7e9db80dcd113d5b1b870dbfe8480f4b087a6c51343f64fb107fda7eecfb",
+      "byteLength": 81,
+      "base64Encoded": false,
+      "mimeType": "text/event-stream"
+    },
+    "node-network-event-9": {
+      "requestId": "node-network-event-9",
+      "path": "bodies/c3a84d1b8ac9c35a-cf096cabf3ea54d3263c5638aee98e7a20fb9394de4b8732d0b4170c0859ba5e.body",
+      "sha256": "cf096cabf3ea54d3263c5638aee98e7a20fb9394de4b8732d0b4170c0859ba5e",
+      "byteLength": 38,
+      "base64Encoded": false,
+      "mimeType": "text/plain"
+    }
+  },
+  "traceIndex": {
+    "4bf92f3577b34da6a3ce929d0e0e4736": {
+      "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+      "requestIds": ["node-network-event-4"],
+      "spans": [
+        {
+          "requestId": "node-network-event-4",
+          "parentId": "00f067aa0ba902b7",
+          "traceFlags": "01",
+          "sampled": true,
+          "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          "tracestate": "vendor=manual-pr64"
+        }
+      ]
+    }
+  },
+  "issues": []
+}

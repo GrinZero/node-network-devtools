@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "testedProductCommit": "449d47db89109e826eb0e7e0584777365eac3f9b",
+  "tarballSha256": "e97dc360d2fcd5d141b13bca490f603b802dc7fe94f3b6a06a690c7a7f48e2ac",
+  "probe": "manual-native-http2-probe.mjs",
+  "request": {
+    "protocol": "h2c",
+    "status": 200,
+    "responseBody": "h2-ok",
+    "consumerBehavior": "request.setEncoding('utf8') plus data consumption"
+  },
+  "cases": [
+    {
+      "node": "v22.22.3",
+      "exitCode": 0,
+      "advertisedHttp2": true,
+      "eventSequence": [
+        "Network.requestWillBeSent",
+        "Network.responseReceived",
+        "Network.loadingFinished"
+      ],
+      "receivedBody": "h2-ok",
+      "outcome": "complete lifecycle"
+    },
+    {
+      "node": "v24.16.0",
+      "exitCode": 1,
+      "advertisedHttp2": false,
+      "eventSequence": ["Network.requestWillBeSent", "Network.responseReceived"],
+      "receivedBody": null,
+      "error": "TypeError: Missing dataLength in event",
+      "source": "node:internal/inspector/network_http2:222",
+      "outcome": "upstream Inspector crash reproduced; capability correctly withheld"
+    },
+    {
+      "node": "v26.8.1",
+      "exitCode": 1,
+      "advertisedHttp2": false,
+      "eventSequence": ["Network.requestWillBeSent", "Network.responseReceived"],
+      "receivedBody": null,
+      "error": "TypeError: Missing dataLength in event",
+      "source": "node:internal/inspector/network_http2:223",
+      "outcome": "upstream Inspector crash reproduced; capability correctly withheld"
+    }
+  ],
+  "assertion": {
+    "status": "PASS",
+    "reason": "The exact package advertises HTTP/2 only on the verified Node 22.20+ 22.x line and does not inherit support into affected or future majors."
+  }
+}

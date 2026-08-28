@@ -1,0 +1,16 @@
+.runtime/
+.playwright/
+.playwright-cli/
+consumer/
+package/
+videos/
+*.log
+screenshots/MT-02-zero-code-native.png
+screenshots/MT-04-native-standard-discovery.png
+screenshots/MT-07-legacy-fallback-and-capabilities.png
+screenshots/MT-08-legacy-standard-discovery.png
+screenshots/MT-10-legacy-mock-fetch-no-origin-leak.png
+screenshots/MT-10-legacy-mock-http-no-origin-leak.png
+screenshots/MT-11-legacy-websocket-frames.png
+!manual-localhost-cert.pem
+!manual-localhost-key.pem

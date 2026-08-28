@@ -1,6 +1,6 @@
 # Node Network Devtools v2 implementation plan
 
-Status: in progress
+Status: complete
 
 Started: 2026-08-28
 
@@ -409,3 +409,21 @@ checkbox above and additionally prove:
   quality workflow succeeds; it then downloads that workflow's sole artifact and
   verifies its SHA-256 and release tag before publishing. No real npm publish was
   performed as part of this implementation.
+- 2026-08-28: PR #64 manual acceptance audit passed 14/14 cases against exact
+  packed product commit `449d47db89109e826eb0e7e0584777365eac3f9b` and tarball
+  SHA-256
+  `e97dc360d2fcd5d141b13bca490f603b802dc7fe94f3b6a06a690c7a7f48e2ac`.
+  Computer Use and Playwright exercised six public CLI cases, Native and Legacy
+  runtime selection, full standard discovery, official Chromium DevTools
+  request details, reload/reconnect, HTTPS, failed requests, Legacy mocks, SSE,
+  WebSocket lifecycle/frames, Session/HAR/Replay/Trace, capability boundaries,
+  and closed-endpoint disposal. The audit discovered that a non-empty HTTP/2
+  response crashes Node 24.16 and 26.8 inside
+  `node:internal/inspector/network_http2`; commit `449d47d` therefore replaced
+  the open-ended Native capability claim with the verified Node 22.20+ 22.x
+  range. The exact-package probe proves a complete lifecycle and body on Node
+  22.22.3 while the affected/future majors correctly withhold the capability.
+  The reviewable matrix, 26 privacy-reviewed screenshots, 17 structured
+  artifacts, five reproduction harnesses, test TLS inputs, and SHA-256 manifest
+  are retained in the
+  [PR #64 manual evidence report](test-evidence/v2/pr-64/README.md).

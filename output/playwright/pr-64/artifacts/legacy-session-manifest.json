@@ -1,0 +1,518 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "fe170256-a52e-497e-8502-5e589fcb7bea",
+  "state": "completed",
+  "createdAt": "2026-08-28T07:50:35.521Z",
+  "target": {
+    "id": "node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "title": "Node Network Devtools (Legacy)",
+    "type": "node",
+    "url": "file://<isolated-consumer>/node_modules/node-network-devtools/dist/fork",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "devtoolsFrontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "devtoolsFrontendUrlCompat": "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "discoveryUrl": "http://127.0.0.1:59430/json/list"
+  },
+  "files": {
+    "events": "events.ndjson",
+    "bodies": "bodies"
+  },
+  "completedAt": "2026-08-28T07:54:18.050Z",
+  "stats": {
+    "eventCount": 54,
+    "requestCount": 12,
+    "bodyCount": 10,
+    "bodyErrorCount": 0,
+    "failedRequestCount": 1
+  },
+  "requestIndex": {
+    "0cc5f65a-40ac-4130-9be9-3f41d81ff929": {
+      "requestId": "0cc5f65a-40ac-4130-9be9-3f41d81ff929",
+      "firstSequence": 2,
+      "requestTimestamp": 0.009,
+      "wallTime": 1787903435.508,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59430/json/list",
+        "method": "GET",
+        "headers": {},
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "responseTimestamp": 0.017,
+      "response": {
+        "url": "http://127.0.0.1:59430/json/list",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+          "connection": "keep-alive",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Fri, 28 Aug 2026 07:50:35 GMT",
+          "keep-alive": "timeout=5",
+          "transfer-encoding": "chunked"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "application/json"
+      },
+      "finishedTimestamp": 0.018,
+      "encodedDataLength": 821
+    },
+    "9405f647-edce-4fb1-a015-9e7b89878de5": {
+      "requestId": "9405f647-edce-4fb1-a015-9e7b89878de5",
+      "firstSequence": 3,
+      "requestTimestamp": 0.011,
+      "wallTime": 1787903435.512,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59430/json/version",
+        "method": "GET",
+        "headers": {},
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "responseTimestamp": 0.019,
+      "response": {
+        "url": "http://127.0.0.1:59430/json/version",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+          "connection": "keep-alive",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Fri, 28 Aug 2026 07:50:35 GMT",
+          "keep-alive": "timeout=5",
+          "transfer-encoding": "chunked"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "application/json"
+      },
+      "finishedTimestamp": 0.019,
+      "encodedDataLength": 248
+    },
+    "9e61ccb6-be11-43f9-8355-2d64a4cb6e60": {
+      "requestId": "9e61ccb6-be11-43f9-8355-2d64a4cb6e60",
+      "firstSequence": 4,
+      "requestTimestamp": 0.011,
+      "wallTime": 1787903435.512,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59430/json/protocol",
+        "method": "GET",
+        "headers": {},
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "responseTimestamp": 0.019,
+      "response": {
+        "url": "http://127.0.0.1:59430/json/protocol",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "access-control-allow-origin": "*",
+          "cache-control": "no-store",
+          "connection": "keep-alive",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Fri, 28 Aug 2026 07:50:35 GMT",
+          "keep-alive": "timeout=5",
+          "transfer-encoding": "chunked"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "application/json"
+      },
+      "finishedTimestamp": 0.019,
+      "encodedDataLength": 1323
+    },
+    "58134218-34a0-4b54-a2ab-e1fd65450177": {
+      "requestId": "58134218-34a0-4b54-a2ab-e1fd65450177",
+      "firstSequence": 15,
+      "requestTimestamp": 79.291,
+      "wallTime": 1787903514.791,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59428/get?token=legacy-http-get-01",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:59428"
+        },
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "responseTimestamp": 79.292,
+      "response": {
+        "url": "http://127.0.0.1:59428/get?token=legacy-http-get-01",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": "38",
+          "x-manual-case": "legacy-http-get-01",
+          "date": "Fri, 28 Aug 2026 07:51:54 GMT",
+          "connection": "keep-alive",
+          "keep-alive": "timeout=5"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "text/plain"
+      },
+      "finishedTimestamp": 79.293,
+      "encodedDataLength": 38
+    },
+    "679ed0e5-ef59-4d2e-89ab-391343c82c31": {
+      "requestId": "679ed0e5-ef59-4d2e-89ab-391343c82c31",
+      "firstSequence": 19,
+      "requestTimestamp": 83.251,
+      "wallTime": 1787903518.749,
+      "resourceType": "Other",
+      "request": {
+        "url": "https://127.0.0.1:59429/secure-get?token=legacy-https-get-02",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:59429"
+        },
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "responseTimestamp": 83.257,
+      "response": {
+        "url": "https://127.0.0.1:59429/secure-get?token=legacy-https-get-02",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "content-length": "41",
+          "x-manual-case": "legacy-https-get-02",
+          "date": "Fri, 28 Aug 2026 07:51:58 GMT",
+          "connection": "keep-alive",
+          "keep-alive": "timeout=5"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "text/plain"
+      },
+      "finishedTimestamp": 83.257,
+      "encodedDataLength": 41
+    },
+    "3e47e0b7-987b-463c-aa0e-9765fc6d7e11": {
+      "requestId": "3e47e0b7-987b-463c-aa0e-9765fc6d7e11",
+      "firstSequence": 23,
+      "requestTimestamp": 87.391,
+      "wallTime": 1787903522.892,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59428/post?token=legacy-fetch-post-03",
+        "method": "POST",
+        "headers": {
+          "content-type": "text/plain; charset=utf-8",
+          "x-manual-case": "legacy-fetch-post-03"
+        },
+        "initialPriority": "High",
+        "mixedContentType": "none",
+        "postData": "manual-request-body:legacy-fetch-post-03",
+        "hasPostData": true
+      },
+      "responseTimestamp": 87.396,
+      "response": {
+        "url": "http://127.0.0.1:59428/post?token=legacy-fetch-post-03",
+        "status": 201,
+        "statusText": "Created",
+        "headers": {
+          "connection": "keep-alive",
+          "content-length": "89",
+          "content-type": "application/json; charset=utf-8",
+          "date": "Fri, 28 Aug 2026 07:52:02 GMT",
+          "keep-alive": "timeout=5",
+          "x-manual-case": "legacy-fetch-post-03"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "application/json"
+      },
+      "finishedTimestamp": 87.397,
+      "encodedDataLength": 89
+    },
+    "1b1612b8-6e03-4483-8d4f-74c232a36835": {
+      "requestId": "1b1612b8-6e03-4483-8d4f-74c232a36835",
+      "firstSequence": 27,
+      "requestTimestamp": 91.466,
+      "wallTime": 1787903526.966,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59428/trace?token=legacy-trace-04",
+        "method": "GET",
+        "headers": {
+          "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          "tracestate": "vendor=manual-pr64",
+          "host": "127.0.0.1:59428"
+        },
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "trace": {
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "version": "00",
+        "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "parentId": "00f067aa0ba902b7",
+        "traceFlags": "01",
+        "sampled": true,
+        "tracestate": "vendor=manual-pr64"
+      },
+      "responseTimestamp": 91.468,
+      "response": {
+        "url": "http://127.0.0.1:59428/trace?token=legacy-trace-04",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "content-length": "133",
+          "date": "Fri, 28 Aug 2026 07:52:06 GMT",
+          "connection": "keep-alive",
+          "keep-alive": "timeout=5"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "application/json"
+      },
+      "finishedTimestamp": 91.468,
+      "encodedDataLength": 133
+    },
+    "25379421-e6bd-43f0-92a2-eb9f2345a4ac": {
+      "requestId": "25379421-e6bd-43f0-92a2-eb9f2345a4ac",
+      "firstSequence": 31,
+      "requestTimestamp": 95.432,
+      "wallTime": 1787903530.932,
+      "resourceType": "Fetch",
+      "request": {
+        "url": "http://127.0.0.1:59428/reset?token=legacy-failed-05",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:59428"
+        },
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "finishedTimestamp": 95.433,
+      "failure": {
+        "errorText": "socket hang up",
+        "canceled": false
+      }
+    },
+    "21870c2f-ae5c-45b6-a61b-f2827cf4b8fe": {
+      "requestId": "21870c2f-ae5c-45b6-a61b-f2827cf4b8fe",
+      "firstSequence": 33,
+      "requestTimestamp": 99.432,
+      "wallTime": 1787903534.932,
+      "resourceType": "EventSource",
+      "request": {
+        "url": "http://127.0.0.1:59428/sse?token=legacy-sse-06",
+        "method": "GET",
+        "headers": {},
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "responseTimestamp": 99.435,
+      "response": {
+        "url": "http://127.0.0.1:59428/sse?token=legacy-sse-06",
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "cache-control": "no-cache",
+          "connection": "keep-alive",
+          "content-length": "81",
+          "content-type": "text/event-stream; charset=utf-8",
+          "date": "Fri, 28 Aug 2026 07:52:14 GMT",
+          "keep-alive": "timeout=5"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "text/event-stream"
+      },
+      "finishedTimestamp": 99.435,
+      "encodedDataLength": 81
+    },
+    "ef2b1aa4-f871-4c37-a398-91a29ed42bd8": {
+      "requestId": "ef2b1aa4-f871-4c37-a398-91a29ed42bd8",
+      "firstSequence": 39
+    },
+    "97ab50a1-7dc0-4698-8eb6-6c585c1b0800": {
+      "requestId": "97ab50a1-7dc0-4698-8eb6-6c585c1b0800",
+      "firstSequence": 47,
+      "requestTimestamp": 107.491,
+      "wallTime": 1787903542.991,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59428/mock-http?token=legacy-mock-http-08",
+        "method": "GET",
+        "headers": {
+          "host": "127.0.0.1:59428"
+        },
+        "initialPriority": "High",
+        "mixedContentType": "none"
+      },
+      "responseTimestamp": 107.491,
+      "response": {
+        "url": "http://127.0.0.1:59428/mock-http?token=legacy-mock-http-08",
+        "status": 207,
+        "statusText": "Manual Mock HTTP",
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "x-nnd-mock": "http",
+          "content-length": "67"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "application/json"
+      },
+      "finishedTimestamp": 107.491,
+      "encodedDataLength": 67
+    },
+    "a85e4f7f-a238-44c7-866e-2b7cfb325da1": {
+      "requestId": "a85e4f7f-a238-44c7-866e-2b7cfb325da1",
+      "firstSequence": 51,
+      "requestTimestamp": 111.49,
+      "wallTime": 1787903546.991,
+      "resourceType": "Other",
+      "request": {
+        "url": "http://127.0.0.1:59428/mock-fetch?token=legacy-mock-fetch-09",
+        "method": "POST",
+        "headers": {
+          "content-type": "text/plain",
+          "x-manual-mock": "fetch"
+        },
+        "initialPriority": "High",
+        "mixedContentType": "none",
+        "postData": "must-not-reach-origin:legacy-mock-fetch-09",
+        "hasPostData": true
+      },
+      "responseTimestamp": 111.491,
+      "response": {
+        "url": "http://127.0.0.1:59428/mock-fetch?token=legacy-mock-fetch-09",
+        "status": 202,
+        "statusText": "Manual Mock Fetch",
+        "headers": {
+          "content-type": "application/json; charset=utf-8",
+          "x-nnd-mock": "fetch"
+        },
+        "connectionReused": false,
+        "encodedDataLength": 0,
+        "charset": "utf-8",
+        "mimeType": "application/json"
+      },
+      "finishedTimestamp": 111.491,
+      "encodedDataLength": 68
+    }
+  },
+  "bodyIndex": {
+    "0cc5f65a-40ac-4130-9be9-3f41d81ff929": {
+      "requestId": "0cc5f65a-40ac-4130-9be9-3f41d81ff929",
+      "path": "bodies/9d4da820dd90637b-4d42de0bb5b2269011ec887a81c45783270bc1fa034d2b16913b29a466eed86d.body",
+      "sha256": "4d42de0bb5b2269011ec887a81c45783270bc1fa034d2b16913b29a466eed86d",
+      "byteLength": 821,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "9405f647-edce-4fb1-a015-9e7b89878de5": {
+      "requestId": "9405f647-edce-4fb1-a015-9e7b89878de5",
+      "path": "bodies/856a19bcfdf19a59-bbf42bcaa1d02652fd51fb30e5a96e01da3b85f015fd1635b2adcee547d08444.body",
+      "sha256": "bbf42bcaa1d02652fd51fb30e5a96e01da3b85f015fd1635b2adcee547d08444",
+      "byteLength": 248,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "9e61ccb6-be11-43f9-8355-2d64a4cb6e60": {
+      "requestId": "9e61ccb6-be11-43f9-8355-2d64a4cb6e60",
+      "path": "bodies/1e5129332eeffbac-59b00c761bb938bbd60117eeafca6eb93ed4c9df481b492b37cd14fbcb1d121a.body",
+      "sha256": "59b00c761bb938bbd60117eeafca6eb93ed4c9df481b492b37cd14fbcb1d121a",
+      "byteLength": 1323,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "58134218-34a0-4b54-a2ab-e1fd65450177": {
+      "requestId": "58134218-34a0-4b54-a2ab-e1fd65450177",
+      "path": "bodies/2d08ba5699d46627-4dbbb1b839dde1985bb99f2e0191e702c723ed9c0270c8863fa7a15b1a4d1241.body",
+      "sha256": "4dbbb1b839dde1985bb99f2e0191e702c723ed9c0270c8863fa7a15b1a4d1241",
+      "byteLength": 38,
+      "base64Encoded": false,
+      "mimeType": "text/plain"
+    },
+    "679ed0e5-ef59-4d2e-89ab-391343c82c31": {
+      "requestId": "679ed0e5-ef59-4d2e-89ab-391343c82c31",
+      "path": "bodies/dc8bd877cc1f50c9-3da027641befa9a07e036caa733aff0e6bbdbe2d79bd51592a2b98af03823010.body",
+      "sha256": "3da027641befa9a07e036caa733aff0e6bbdbe2d79bd51592a2b98af03823010",
+      "byteLength": 41,
+      "base64Encoded": false,
+      "mimeType": "text/plain"
+    },
+    "3e47e0b7-987b-463c-aa0e-9765fc6d7e11": {
+      "requestId": "3e47e0b7-987b-463c-aa0e-9765fc6d7e11",
+      "path": "bodies/d520b6573b0f1805-06a511ade7e9e2ec749546b3c19cfa3ad033741a2431101b2b8d5c4c8f773686.body",
+      "sha256": "06a511ade7e9e2ec749546b3c19cfa3ad033741a2431101b2b8d5c4c8f773686",
+      "byteLength": 89,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "1b1612b8-6e03-4483-8d4f-74c232a36835": {
+      "requestId": "1b1612b8-6e03-4483-8d4f-74c232a36835",
+      "path": "bodies/d0b35c18e5a6e6fa-7ea97b7efb1716877e99643b9309fab128cfc9b4361865629e7355ff2a619adf.body",
+      "sha256": "7ea97b7efb1716877e99643b9309fab128cfc9b4361865629e7355ff2a619adf",
+      "byteLength": 133,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "21870c2f-ae5c-45b6-a61b-f2827cf4b8fe": {
+      "requestId": "21870c2f-ae5c-45b6-a61b-f2827cf4b8fe",
+      "path": "bodies/285b774da6e19996-099ad30fee6432ff6c49a303917619cf899ffa89ce05a26d87a5e118bea4cae0.body",
+      "sha256": "099ad30fee6432ff6c49a303917619cf899ffa89ce05a26d87a5e118bea4cae0",
+      "byteLength": 81,
+      "base64Encoded": false,
+      "mimeType": "text/event-stream"
+    },
+    "97ab50a1-7dc0-4698-8eb6-6c585c1b0800": {
+      "requestId": "97ab50a1-7dc0-4698-8eb6-6c585c1b0800",
+      "path": "bodies/8ad3dde286c71e26-bf55b18bcb5c10539e5529e2f80c8bea6021a6ec17d157d21be2c3ec53c46a11.body",
+      "sha256": "bf55b18bcb5c10539e5529e2f80c8bea6021a6ec17d157d21be2c3ec53c46a11",
+      "byteLength": 67,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    },
+    "a85e4f7f-a238-44c7-866e-2b7cfb325da1": {
+      "requestId": "a85e4f7f-a238-44c7-866e-2b7cfb325da1",
+      "path": "bodies/5e5ac978a5a357db-2529fff188d8b259ca882f4c4ab063d29f11b43e18b2ed57718fea224673ddda.body",
+      "sha256": "2529fff188d8b259ca882f4c4ab063d29f11b43e18b2ed57718fea224673ddda",
+      "byteLength": 68,
+      "base64Encoded": false,
+      "mimeType": "application/json"
+    }
+  },
+  "traceIndex": {
+    "4bf92f3577b34da6a3ce929d0e0e4736": {
+      "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+      "requestIds": ["1b1612b8-6e03-4483-8d4f-74c232a36835"],
+      "spans": [
+        {
+          "requestId": "1b1612b8-6e03-4483-8d4f-74c232a36835",
+          "parentId": "00f067aa0ba902b7",
+          "traceFlags": "01",
+          "sampled": true,
+          "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+          "tracestate": "vendor=manual-pr64"
+        }
+      ]
+    }
+  },
+  "issues": []
+}

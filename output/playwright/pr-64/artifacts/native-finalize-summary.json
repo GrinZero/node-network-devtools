@@ -1,0 +1,90 @@
+{
+  "sessionDirectory": "<evidence-root>/.runtime/native-session-1787903188869",
+  "manualAssertions": {
+    "passed": true,
+    "discovery": {
+      "list": {
+        "ok": true,
+        "targetCount": 1,
+        "targetIdMatches": true
+      },
+      "version": {
+        "ok": true,
+        "browser": "node.js/v24.16.0",
+        "protocolVersion": "1.1"
+      },
+      "protocol": {
+        "ok": true,
+        "domainCount": 14,
+        "networkDomain": true,
+        "networkCommandCount": 6,
+        "networkEventCount": 8
+      }
+    },
+    "failedLifecycle": {
+      "requestId": "node-network-event-5",
+      "requestWillBeSent": 1,
+      "responseReceived": 0,
+      "loadingFinished": 0,
+      "loadingFailed": 1
+    },
+    "webSocketBoundary": {
+      "lifecycleCreated": 1,
+      "lifecycleClosed": 1,
+      "framesSent": 0,
+      "framesReceived": 0,
+      "expectedFrameCapture": false
+    },
+    "sseBoundary": {
+      "requestCaptured": true,
+      "messageEvents": 0,
+      "expectedMessageCapture": false
+    },
+    "traceBoundary": {
+      "explicitTraceRequests": 1,
+      "explicitTracePreserved": true,
+      "untracedBusinessRequests": 6,
+      "untracedHeadersAbsent": true
+    }
+  },
+  "manifest": {
+    "schemaVersion": 1,
+    "state": "completed",
+    "stats": {
+      "eventCount": 24,
+      "requestCount": 9,
+      "bodyCount": 6,
+      "bodyErrorCount": 0,
+      "failedRequestCount": 1
+    },
+    "issues": [],
+    "traceContexts": [
+      {
+        "requestId": "node-network-event-4",
+        "parentId": "00f067aa0ba902b7",
+        "traceFlags": "01",
+        "sampled": true,
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "tracestate": "vendor=manual-pr64"
+      }
+    ]
+  },
+  "har": {
+    "version": "1.2",
+    "creator": {
+      "name": "node-network-devtools",
+      "version": "2"
+    },
+    "entries": 9,
+    "statuses": [200, 200, 201, 200, 0, 200, 0, 0, 200],
+    "replayableEntries": 5
+  },
+  "replay": {
+    "dryRun": true,
+    "dryRunRequests": 5,
+    "dryRunPassed": true,
+    "realRequests": 5,
+    "realPassed": true
+  },
+  "originLeakCount": 0
+}

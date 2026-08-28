@@ -32,22 +32,37 @@ const DEFAULT_DISCOVERY_OPTIONS: Required<TargetDiscoveryOptions> = {
 function requestJson(url: string, timeoutMs: number): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
-    const request = http.get(parsed, (response) => {
+    // Discovery targets an Inspector server that this process may own. A
+    // pooled keep-alive socket can outlive the response and make the
+    // synchronous inspector.close() wait on its own client connection,
+    // particularly on Windows. Give each probe an isolated, non-reusing
+    // agent so the response fully releases the target before disposal.
+    const request = http.get(parsed, { agent: false }, (response) => {
       const chunks: Buffer[] = []
+      const socket = response.socket
 
       response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+      response.once('error', reject)
       response.on('end', () => {
         const statusCode = response.statusCode ?? 0
+        let result: unknown
+        let failure: unknown
         if (statusCode < 200 || statusCode >= 300) {
-          reject(new Error(`Inspector discovery returned HTTP ${statusCode}`))
-          return
+          failure = new Error(`Inspector discovery returned HTTP ${statusCode}`)
+        } else {
+          try {
+            result = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+          } catch (error) {
+            failure = error
+          }
         }
 
-        try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-        } catch (error) {
-          reject(error)
-        }
+        const settle = () => (failure ? reject(failure) : resolve(result))
+        // `end` means the payload is complete, not that the underlying socket
+        // has left the Inspector server. Wait for actual close before allowing
+        // an owning adapter to call the synchronous inspector.close().
+        if (socket.destroyed) settle()
+        else socket.once('close', settle)
       })
     })
 

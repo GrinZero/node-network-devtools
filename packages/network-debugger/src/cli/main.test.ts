@@ -119,11 +119,12 @@ describe('runCli', () => {
     })
     const stderr = output()
     const exitCode = await runCli(
-      ['dev', '--no-wait', '--runner', 'tsx', 'app.ts', '--', '--port', '3'],
+      ['dev', '--mode', 'native', '--no-wait', '--runner', 'tsx', 'app.ts', '--', '--port', '3'],
       {
         cwd: '/project',
         env: {},
         execPath: '/node',
+        nodeVersion: '24.7.0',
         preloadUrl: 'file:///dist/register.mjs',
         spawn,
         signals: new EventEmitter(),

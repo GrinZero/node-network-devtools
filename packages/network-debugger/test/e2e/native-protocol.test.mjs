@@ -228,6 +228,10 @@ test(
         const scenario = await harness.runScenario('http', { url, token })
         assert.deepEqual(scenario, { status: 200, body: `http-response:${token}` })
 
+        // The scenario result arrives over IPC, while Session events arrive over
+        // a separate Inspector WebSocket. Wait for the real terminal event and
+        // body capture instead of racing finalization against that second channel.
+        await harness.waitForRecordedRequest(url)
         await harness.finalizeSession()
         const manifest = JSON.parse(
           await readFile(resolve(harness.sessionDirectory, 'manifest.json'), 'utf8')

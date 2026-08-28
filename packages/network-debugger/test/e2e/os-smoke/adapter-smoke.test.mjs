@@ -15,19 +15,26 @@ function requestJson(url, timeoutMs = 3_000) {
   return new Promise((resolve, reject) => {
     const request = http.get(url, { agent: false }, (response) => {
       const chunks = []
+      const socket = response.socket
       response.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
       response.once('error', reject)
       response.once('end', () => {
         const text = Buffer.concat(chunks).toString('utf8')
+        let result
+        let failure
         if (response.statusCode !== 200) {
-          reject(new Error(`${url} returned HTTP ${response.statusCode}: ${text}`))
-          return
+          failure = new Error(`${url} returned HTTP ${response.statusCode}: ${text}`)
+        } else {
+          try {
+            result = JSON.parse(text)
+          } catch (error) {
+            failure = new Error(`${url} returned invalid JSON: ${text}`, { cause: error })
+          }
         }
-        try {
-          resolve(JSON.parse(text))
-        } catch (error) {
-          reject(new Error(`${url} returned invalid JSON: ${text}`, { cause: error }))
-        }
+
+        const settle = () => (failure ? reject(failure) : resolve(result))
+        if (socket.destroyed) settle()
+        else socket.once('close', settle)
       })
     })
     request.setTimeout(timeoutMs, () => request.destroy(new Error(`Timed out requesting ${url}`)))

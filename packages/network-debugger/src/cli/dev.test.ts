@@ -60,6 +60,17 @@ function command(overrides: Partial<DevCommand> = {}): DevCommand {
   }
 }
 
+const nativeRuntime = {
+  nodeVersion: '24.7.0',
+  inspectorAvailable: true,
+  inspectorNetwork: {
+    requestWillBeSent: vi.fn(),
+    responseReceived: vi.fn(),
+    loadingFinished: vi.fn(),
+    loadingFailed: vi.fn()
+  }
+} as const
+
 describe('dev command construction', () => {
   it('injects native flags and the absolute preload URL without changing NODE_OPTIONS', () => {
     const built = buildDevCommand({
@@ -69,7 +80,8 @@ describe('dev command construction', () => {
       cwd: '/project',
       env: { NODE_OPTIONS: '--trace-warnings' },
       execPath: '/usr/bin/node',
-      preloadUrl: 'file:///package/dist/register.mjs'
+      preloadUrl: 'file:///package/dist/register.mjs',
+      ...nativeRuntime
     })
 
     expect(built).toMatchObject({
@@ -98,7 +110,8 @@ describe('dev command construction', () => {
       buildDevCommand({
         entry: 'app.js',
         config: config({ wait: false }),
-        preloadUrl: 'file:///register.mjs'
+        preloadUrl: 'file:///register.mjs',
+        ...nativeRuntime
       }).args
     ).toEqual([
       '--experimental-network-inspection',

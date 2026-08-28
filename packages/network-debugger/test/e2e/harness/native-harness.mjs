@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -212,6 +212,47 @@ export class NativeE2EHarness {
     const message = await resultPromise
     if (!message.ok) throw new Error(`Native Session finalization failed:\n${message.error}`)
     return message.result
+  }
+
+  async waitForRecordedRequest(url, { requireBody = true, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+    if (!this.sessionDirectory) throw new Error('Native Session recording is not enabled')
+
+    const manifestPath = resolve(this.sessionDirectory, 'manifest.json')
+    const deadline = Date.now() + timeoutMs
+    let lastManifest
+    let lastReadError
+
+    while (Date.now() < deadline) {
+      try {
+        lastManifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+        lastReadError = undefined
+        const request = Object.values(lastManifest.requestIndex ?? {}).find(
+          (entry) => entry?.request?.url === url
+        )
+        const body = request?.requestId ? lastManifest.bodyIndex?.[request.requestId] : undefined
+
+        if (
+          request?.response &&
+          Number.isFinite(request.finishedTimestamp) &&
+          (!requireBody || body)
+        ) {
+          return { manifest: lastManifest, request, body }
+        }
+      } catch (error) {
+        lastReadError = error
+      }
+
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 25))
+    }
+
+    const observed = lastManifest
+      ? JSON.stringify({ stats: lastManifest.stats, issues: lastManifest.issues })
+      : lastReadError instanceof Error
+        ? lastReadError.message
+        : 'no readable manifest'
+    throw new Error(
+      `Timed out after ${timeoutMs}ms waiting for Session to record ${url}. Observed: ${observed}`
+    )
   }
 
   waitForTargetMessage(predicate, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {

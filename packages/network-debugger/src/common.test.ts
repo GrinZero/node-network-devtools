@@ -1,21 +1,5 @@
 import { vi, describe, beforeEach, test, expect } from 'vitest'
-import {
-  RequestDetail,
-  PORT,
-  SERVER_PORT,
-  REMOTE_DEBUGGER_PORT,
-  IS_DEV_MODE,
-  READY_MESSAGE,
-  NETWORK_CONTEXT_KEY,
-  WS_PROTOCOL,
-  CONTEXT_KEY_PORT,
-  CONTEXT_KEY_SERVER_PORT,
-  CONTEXT_KEY_AUTO_OPEN_DEVTOOL,
-  CONTEXT_KEY_INTERCEPT_NORMAL,
-  CONTEXT_KEY_INTERCEPT_FETCH,
-  CONTEXT_KEY_INTERCEPT_UNDICI_FETCH,
-  CONTEXT_KEY_HASH
-} from './common'
+import { RequestDetail } from './common'
 
 describe('RequestDetail', () => {
   beforeEach(() => {
@@ -254,164 +238,22 @@ describe('RequestDetail', () => {
     })
   })
 
-  describe('isHiden', () => {
-    test('should return true for ws://127.0.0.1/ websocket connections', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'ws://127.0.0.1/'
-
-      expect(requestDetail.isHiden()).toBe(true)
-    })
-
-    test('should return true for http://127.0.0.1/ websocket connections', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'http://127.0.0.1/'
-
-      expect(requestDetail.isHiden()).toBe(true)
-    })
-
-    test('should return false for non-127.0.0.1 websocket connections', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'ws://example.com/'
-
-      expect(requestDetail.isHiden()).toBe(false)
-    })
-
-    test('should return false for non-websocket 127.0.0.1 connections', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { 'Content-Type': 'application/json' }
-      requestDetail.url = 'http://127.0.0.1/'
-
-      expect(requestDetail.isHiden()).toBe(false)
-    })
-
-    test('should return false for websocket with different 127.0.0.1 path', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'ws://127.0.0.1/api'
-
-      expect(requestDetail.isHiden()).toBe(false)
-    })
-
-    test('should return false for websocket with 127.0.0.1 and port', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'ws://127.0.0.1:8080/'
-
-      expect(requestDetail.isHiden()).toBe(false)
-    })
-
-    test('should return false when url is undefined', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = undefined
-
-      expect(requestDetail.isHiden()).toBe(false)
-    })
-
-    test('should return false for wss://127.0.0.1/ (secure websocket)', () => {
-      const requestDetail = new RequestDetail()
-      requestDetail.requestHeaders = { Upgrade: 'websocket' }
-      requestDetail.url = 'wss://127.0.0.1/'
-
-      expect(requestDetail.isHiden()).toBe(false)
-    })
-  })
-
   describe('default property values', () => {
-    test('should have undefined optional properties by default', () => {
+    test('initializes mutable header/info containers and leaves scalar fields undefined', () => {
       const requestDetail = new RequestDetail()
 
       expect(requestDetail.url).toBeUndefined()
       expect(requestDetail.method).toBeUndefined()
       expect(requestDetail.cookies).toBeUndefined()
-      expect(requestDetail.requestHeaders).toBeUndefined()
+      expect(requestDetail.requestHeaders).toEqual({})
       expect(requestDetail.requestData).toBeUndefined()
       expect(requestDetail.responseData).toBeUndefined()
       expect(requestDetail.responseStatusCode).toBeUndefined()
-      expect(requestDetail.responseHeaders).toBeUndefined()
+      expect(requestDetail.responseHeaders).toEqual({})
+      expect(requestDetail.responseInfo).toEqual({})
       expect(requestDetail.requestStartTime).toBeUndefined()
       expect(requestDetail.requestEndTime).toBeUndefined()
       expect(requestDetail.initiator).toBeUndefined()
-    })
-  })
-})
-
-describe('常量导出', () => {
-  describe('端口常量', () => {
-    test('PORT 应该是数字类型', () => {
-      expect(typeof PORT).toBe('number')
-    })
-
-    test('SERVER_PORT 应该是数字类型', () => {
-      expect(typeof SERVER_PORT).toBe('number')
-    })
-
-    test('REMOTE_DEBUGGER_PORT 应该是数字类型', () => {
-      expect(typeof REMOTE_DEBUGGER_PORT).toBe('number')
-    })
-
-    test('默认端口值应该正确', () => {
-      // 如果没有设置环境变量，应该使用默认值
-      if (!process.env.NETWORK_PORT) {
-        expect(PORT).toBe(5270)
-      }
-      if (!process.env.NETWORK_SERVER_PORT) {
-        expect(SERVER_PORT).toBe(5271)
-      }
-      if (!process.env.REMOTE_DEBUGGER_PORT) {
-        expect(REMOTE_DEBUGGER_PORT).toBe(9333)
-      }
-    })
-  })
-
-  describe('模式常量', () => {
-    test('IS_DEV_MODE 应该是布尔类型', () => {
-      expect(typeof IS_DEV_MODE).toBe('boolean')
-    })
-
-    test('READY_MESSAGE 应该是字符串 "ready"', () => {
-      expect(READY_MESSAGE).toBe('ready')
-    })
-  })
-
-  describe('上下文键常量', () => {
-    test('NETWORK_CONTEXT_KEY 应该正确', () => {
-      expect(NETWORK_CONTEXT_KEY).toBe('x-network-context')
-    })
-
-    test('WS_PROTOCOL 应该正确', () => {
-      expect(WS_PROTOCOL).toBe('ws')
-    })
-
-    test('CONTEXT_KEY_PORT 应该正确', () => {
-      expect(CONTEXT_KEY_PORT).toBe('x-network-context-port')
-    })
-
-    test('CONTEXT_KEY_SERVER_PORT 应该正确', () => {
-      expect(CONTEXT_KEY_SERVER_PORT).toBe('x-network-context-server-port')
-    })
-
-    test('CONTEXT_KEY_AUTO_OPEN_DEVTOOL 应该正确', () => {
-      expect(CONTEXT_KEY_AUTO_OPEN_DEVTOOL).toBe('x-network-context-auto-open-devtools')
-    })
-
-    test('CONTEXT_KEY_INTERCEPT_NORMAL 应该正确', () => {
-      expect(CONTEXT_KEY_INTERCEPT_NORMAL).toBe('x-network-context-intercept-normal')
-    })
-
-    test('CONTEXT_KEY_INTERCEPT_FETCH 应该正确', () => {
-      expect(CONTEXT_KEY_INTERCEPT_FETCH).toBe('x-network-context-intercept-fetch')
-    })
-
-    test('CONTEXT_KEY_INTERCEPT_UNDICI_FETCH 应该正确', () => {
-      expect(CONTEXT_KEY_INTERCEPT_UNDICI_FETCH).toBe('x-network-context-intercept-undici-fetch')
-    })
-
-    test('CONTEXT_KEY_HASH 应该正确', () => {
-      expect(CONTEXT_KEY_HASH).toBe('x-network-context-hash')
     })
   })
 })

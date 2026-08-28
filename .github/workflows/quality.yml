@@ -1,0 +1,34 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'codex/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Required package and protocol quality
+    uses: ./.github/workflows/reusable-quality.yml
+    permissions:
+      contents: read
+
+  quality-gate:
+    name: Quality Gate
+    if: always()
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce the complete reusable workflow result
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+        run: test "$QUALITY_RESULT" = success

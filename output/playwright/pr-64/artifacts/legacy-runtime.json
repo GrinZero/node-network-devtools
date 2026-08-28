@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "productCommit": "449d47db89109e826eb0e7e0584777365eac3f9b",
+  "package": {
+    "name": "node-network-devtools",
+    "version": "2.0.0"
+  },
+  "tarballSha256": "e97dc360d2fcd5d141b13bca490f603b802dc7fe94f3b6a06a690c7a7f48e2ac",
+  "node": "v24.16.0",
+  "platform": "darwin-arm64",
+  "backend": "legacy",
+  "selectedMode": "legacy",
+  "fallbackReason": {
+    "code": "NND_AUTO_LEGACY_MOCK_REQUIRED",
+    "level": "info",
+    "message": "Auto selected Legacy because request/response mocking was configured.",
+    "hint": "Remove legacy.mock to allow Auto to select the Native backend."
+  },
+  "capabilities": {
+    "http": true,
+    "https": true,
+    "fetch": true,
+    "http2": false,
+    "responseBody": true,
+    "requestBody": true,
+    "websocketLifecycle": true,
+    "websocketFrames": true,
+    "sseMessages": true,
+    "initiator": true
+  },
+  "target": {
+    "id": "node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "title": "Node Network Devtools (Legacy)",
+    "type": "node",
+    "url": "file://<isolated-consumer>/node_modules/node-network-devtools/dist/fork",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "devtoolsFrontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "devtoolsFrontendUrlCompat": "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+    "discoveryUrl": "http://127.0.0.1:59430/json/list"
+  },
+  "discovery": [
+    {
+      "id": "node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+      "title": "Node Network Devtools (Legacy)",
+      "type": "node",
+      "url": "file://<isolated-consumer>/node_modules/node-network-devtools/dist/fork",
+      "webSocketDebuggerUrl": "ws://127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+      "devtoolsFrontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+      "devtoolsFrontendUrlCompat": "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68",
+      "discoveryUrl": "http://127.0.0.1:59430/json/list"
+    }
+  ],
+  "discoveryContract": {
+    "list": {
+      "ok": true,
+      "targetCount": 1,
+      "targetIdMatches": true
+    },
+    "version": {
+      "ok": true,
+      "browser": "node-network-devtools/2",
+      "protocolVersion": "1.3"
+    },
+    "protocol": {
+      "ok": true,
+      "domainCount": 4,
+      "networkDomain": true,
+      "networkCommandCount": 7,
+      "networkEventCount": 12
+    }
+  },
+  "frontendUrl": "http://127.0.0.1:59435/devtools/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:59430/devtools/page/node-network-devtools-b4efbb3a-70c3-435c-a554-567e33524f68&hl=en-US",
+  "controlUrl": "http://127.0.0.1:59436",
+  "originalFunctionsPreserved": {
+    "fetch": false,
+    "httpRequest": false,
+    "httpsRequest": false
+  },
+  "sourceSha256": "46f81eb2930040a31f402cf4cb113758628eb72c9db27617babba1d3df31af27"
+}

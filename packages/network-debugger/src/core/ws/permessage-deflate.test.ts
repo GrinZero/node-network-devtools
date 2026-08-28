@@ -319,6 +319,38 @@ describe('PerMessageDeflate', () => {
       clientPmd.cleanup()
     })
 
+    it('应该在连续消息之间清空缓冲并维护压缩上下文', async () => {
+      const serverPmd = new PerMessageDeflate({}, true)
+      serverPmd.accept([{}])
+      const clientPmd = new PerMessageDeflate({}, false)
+      clientPmd.accept([{}])
+
+      const compress = (data: string) =>
+        new Promise<Buffer>((resolve, reject) => {
+          serverPmd.compress(data, true, (error, result) => {
+            if (error) reject(error)
+            else if (!result) reject(new Error('Compression returned no data'))
+            else resolve(result)
+          })
+        })
+      const decompress = (data: Buffer) =>
+        new Promise<Buffer>((resolve, reject) => {
+          clientPmd.decompress(data, true, (error, result) => {
+            if (error) reject(error)
+            else if (!result) reject(new Error('Decompression returned no data'))
+            else resolve(result)
+          })
+        })
+
+      const first = await decompress(await compress('first compressed message'))
+      const second = await decompress(await compress('second compressed message'))
+
+      expect(first.toString()).toBe('first compressed message')
+      expect(second.toString()).toBe('second compressed message')
+      serverPmd.cleanup()
+      clientPmd.cleanup()
+    })
+
     it('应该在超过 maxPayload 时返回错误（解压缩）', async () => {
       const serverPmd = new PerMessageDeflate({}, true)
       serverPmd.accept([{}])

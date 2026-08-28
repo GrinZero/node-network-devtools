@@ -1,597 +1,259 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
-import { EventEmitter } from 'events'
-import { RequestDetail, READY_MESSAGE } from '../common'
-import type { IncomingMessage } from 'http'
+import { EventEmitter } from 'node:events'
+import { describe, expect, test, vi } from 'vitest'
+import type { DevtoolsTarget, Diagnostic } from '../adapters/types'
+import { RequestDetail } from '../common'
+import type { LegacyBridgeError } from '../legacy-bridge/client'
+import type { LegacyCaptureEvent } from '../legacy-bridge/contracts'
+import { MainProcess } from './fork'
+import { setCurrentCell } from './hooks/cell'
 
-// 使用 vi.hoisted 确保变量在 mock 提升时可用
-const {
-  mockWsSend,
-  mockWsTerminate,
-  mockWsRemoveAllListeners,
-  mockFork,
-  mockCpKill,
-  mockCpRemoveAllListeners,
-  mockExistsSync,
-  mockReadFileSync,
-  mockWriteFileSync,
-  mockSleep,
-  mockCheckMainProcessAlive,
-  mockUnlinkSafe,
-  mockWarn,
-  mockGetCurrentCell,
-  mockGenerateUUID,
-  wsInstances,
-  cpInstances
-} = vi.hoisted(() => {
-  let uuidCounter = 0
-  return {
-    mockWsSend: vi.fn(),
-    mockWsTerminate: vi.fn(),
-    mockWsRemoveAllListeners: vi.fn(),
-    mockFork: vi.fn(),
-    mockCpKill: vi.fn(),
-    mockCpRemoveAllListeners: vi.fn(),
-    mockExistsSync: vi.fn().mockReturnValue(false),
-    mockReadFileSync: vi.fn().mockReturnValue('12345'),
-    mockWriteFileSync: vi.fn(),
-    mockSleep: vi.fn().mockResolvedValue(undefined),
-    mockCheckMainProcessAlive: vi.fn().mockResolvedValue(false),
-    mockUnlinkSafe: vi.fn(),
-    mockWarn: vi.fn(),
-    mockGetCurrentCell: vi.fn().mockReturnValue(null),
-    mockGenerateUUID: vi.fn().mockImplementation(() => `mock-uuid-${++uuidCounter}`),
-    wsInstances: [] as EventEmitter[],
-    cpInstances: [] as EventEmitter[]
+const target: DevtoolsTarget = {
+  id: 'legacy',
+  title: 'Legacy',
+  type: 'node',
+  url: '',
+  webSocketDebuggerUrl: 'ws://127.0.0.1:43120/devtools/page/legacy',
+  discoveryUrl: 'http://127.0.0.1:43120/json/list'
+}
+
+function bridgeHarness() {
+  const events: LegacyCaptureEvent[] = []
+  const listeners = new Set<(diagnostic: Diagnostic) => void>()
+  const failureListeners = new Set<(error: LegacyBridgeError) => void>()
+  const bridge = {
+    ready: Promise.resolve(target),
+    send: vi.fn(async (event: LegacyCaptureEvent) => {
+      events.push(event)
+    }),
+    onDiagnostic: vi.fn((listener: (diagnostic: Diagnostic) => void) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    }),
+    onFailure: vi.fn((listener: (error: LegacyBridgeError) => void) => {
+      failureListeners.add(listener)
+      return () => failureListeners.delete(listener)
+    }),
+    dispose: vi.fn(async () => undefined)
   }
-})
+  const main = new MainProcess({ key: 'compat-key', port: 5270, serverPort: 0 }, { bridge })
+  return { main, bridge, events, listeners, failureListeners }
+}
 
-// Mock ws 模块 - 使用正确的继承方式
-vi.mock('ws', () => {
-  const { EventEmitter } = require('events')
+function request(id = 'request-1'): RequestDetail {
+  const detail = new RequestDetail()
+  detail.id = id
+  detail.url = 'http://example.test/'
+  detail.method = 'GET'
+  detail.requestHeaders = {}
+  return detail
+}
 
-  function MockWebSocket(this: EventEmitter) {
-    EventEmitter.call(this)
-    this.send = mockWsSend
-    this.terminate = mockWsTerminate
-    const originalRemoveAllListeners = this.removeAllListeners.bind(this)
-    this.removeAllListeners = function () {
-      mockWsRemoveAllListeners()
-      return originalRemoveAllListeners()
+class FakeResponse extends EventEmitter {
+  statusCode = 200
+  statusMessage = 'OK'
+  headers = { 'content-type': 'text/plain', 'content-encoding': 'gzip' }
+  complete = false
+}
+
+describe('MainProcess IPC compatibility facade', () => {
+  test('exposes ready/diagnostics and keeps the chainable sendRequest API', async () => {
+    const { main, bridge, events, listeners, failureListeners } = bridgeHarness()
+    const detail = request()
+    const onFailure = vi.fn()
+    main.onFailure(onFailure)
+    expect(failureListeners.has(onFailure)).toBe(true)
+    const diagnosticListener = vi.fn()
+
+    expect(main.onDiagnostic(diagnosticListener)).toEqual(expect.any(Function))
+    expect(listeners.has(diagnosticListener)).toBe(true)
+    expect(main.sendRequest('initRequest', detail)).toBe(main)
+    expect(main.sendRequest('registerRequest', detail)).toBe(main)
+    await expect(main.ready).resolves.toEqual(target)
+    expect(events.map((event) => event.type)).toEqual(['initRequest', 'registerRequest'])
+
+    await main.dispose()
+    expect(bridge.dispose).toHaveBeenCalledOnce()
+  })
+
+  test('binds pipes and abort state by request id across concurrent async lifecycles', async () => {
+    const { main, events } = bridgeHarness()
+    const first = request('concurrent-a')
+    const second = request('concurrent-b')
+    const firstCell = {
+      request: first,
+      isAborted: false,
+      pipes: [
+        {
+          type: 'updateRequest' as const,
+          pipe: (detail: RequestDetail) => Object.assign(new RequestDetail(detail), { method: 'A' })
+        }
+      ]
     }
-    wsInstances.push(this)
-  }
+    const secondCell = {
+      request: second,
+      isAborted: false,
+      pipes: [
+        {
+          type: 'updateRequest' as const,
+          pipe: (detail: RequestDetail) => Object.assign(new RequestDetail(detail), { method: 'B' })
+        }
+      ]
+    }
 
-  // 正确继承 EventEmitter
-  MockWebSocket.prototype = Object.create(EventEmitter.prototype)
-  MockWebSocket.prototype.constructor = MockWebSocket
+    setCurrentCell(firstCell)
+    main.sendRequest('initRequest', first)
+    setCurrentCell(secondCell)
+    main.sendRequest('initRequest', second)
+    // The global cell now belongs to B; A must still use its own pipe/state.
+    main.sendRequest('updateRequest', first)
+    firstCell.isAborted = true
+    main.sendRequest('updateRequest', first)
+    main.sendRequest('updateRequest', second)
+    setCurrentCell(null)
 
-  return {
-    default: MockWebSocket
-  }
-})
+    const updates = events.filter(
+      (event): event is Extract<LegacyCaptureEvent, { type: 'updateRequest' }> =>
+        event.type === 'updateRequest'
+    )
+    expect(updates.map((event) => [event.data.id, event.data.method])).toEqual([
+      ['concurrent-a', 'A'],
+      ['concurrent-b', 'B']
+    ])
+    await main.dispose()
+  })
 
-// Mock child_process 模块
-vi.mock('child_process', () => {
-  const { EventEmitter } = require('events')
+  test('strips IncomingMessage/socket state from the WebSocket handshake event', async () => {
+    const { main, events } = bridgeHarness()
+    const response = Object.assign(new EventEmitter(), {
+      httpVersion: '1.1',
+      statusCode: 101,
+      statusMessage: 'Switching Protocols',
+      rawHeaders: ['Upgrade', 'websocket'],
+      headers: { upgrade: 'websocket' },
+      socket: { live: true }
+    })
 
-  return {
-    fork: function () {
-      mockFork()
-      const cp = new EventEmitter()
-      cp.send = vi.fn().mockReturnValue(true)
-      cp.kill = mockCpKill
-      const originalRemoveAllListeners = cp.removeAllListeners.bind(cp)
-      cp.removeAllListeners = function () {
-        mockCpRemoveAllListeners()
-        return originalRemoveAllListeners()
+    await main.send({
+      type: 'Network.webSocketCreated',
+      data: { requestId: 'ws-1', url: 'ws://example.test/', response }
+    } as any)
+
+    expect(events).toEqual([
+      {
+        type: 'Network.webSocketCreated',
+        data: {
+          requestId: 'ws-1',
+          url: 'ws://example.test/',
+          response: {
+            httpVersion: '1.1',
+            statusCode: 101,
+            statusMessage: 'Switching Protocols',
+            rawHeaders: ['Upgrade', 'websocket'],
+            headers: { upgrade: 'websocket' }
+          }
+        }
       }
-      cpInstances.push(cp)
-      return cp
+    ])
+    expect((events[0] as any).data.response.socket).toBeUndefined()
+    await main.dispose()
+  })
+
+  test('normalizes the historical method/params WebSocket close shape', async () => {
+    const { main, events } = bridgeHarness()
+    await main.send({
+      method: 'Network.webSocketClosed',
+      params: { requestId: 'ws-2', timestamp: 123 }
+    })
+    expect(events).toEqual([{ type: 'Network.webSocketClosed', data: { requestId: 'ws-2' } }])
+    await main.dispose()
+  })
+
+  test('emits responseReceived immediately and responseData with a real Buffer only on end', async () => {
+    const { main, events } = bridgeHarness()
+    const detail = request('success')
+    main.sendRequest('registerRequest', detail)
+    const response = new FakeResponse()
+
+    main.responseRequest('success', response as any)
+    expect(events.map((event) => event.type)).toEqual(['registerRequest', 'responseReceived'])
+    expect(events[1].data as RequestDetail & { responseStatusText?: string }).toMatchObject({
+      responseStatusCode: 200,
+      responseStatusText: 'OK'
+    })
+
+    response.emit('data', Buffer.from('hello '))
+    response.emit('data', new Uint8Array(Buffer.from('world')))
+    response.complete = true
+    response.emit('end')
+    response.emit('close')
+
+    expect(events.map((event) => event.type)).toEqual([
+      'registerRequest',
+      'responseReceived',
+      'responseData'
+    ])
+    const result = events[2] as Extract<LegacyCaptureEvent, { type: 'responseData' }>
+    expect(Buffer.isBuffer(result.data.rawData)).toBe(true)
+    expect(result.data.rawData.toString()).toBe('hello world')
+    expect(detail.requestEndTime).toBeGreaterThan(1_000_000_000)
+    expect(detail.requestEndTime).toBeLessThan(10_000_000_000)
+    expect(result.data).toMatchObject({
+      id: 'success',
+      statusCode: 200,
+      statusMessage: 'OK',
+      contentEncoding: 'gzip'
+    })
+    await main.dispose()
+  })
+
+  test.each([
+    ['aborted', undefined, true],
+    ['error', new Error('socket reset'), false],
+    ['close', undefined, false]
+  ] as const)(
+    '%s emits requestFailed exactly once and never responseData',
+    async (eventName, error, canceled) => {
+      const { main, events } = bridgeHarness()
+      const detail = request(eventName)
+      main.sendRequest('registerRequest', detail)
+      const response = new FakeResponse()
+      // Real IncomingMessage consumers may keep their own error listener after
+      // MainProcess removes only the listener it owns.
+      response.on('error', () => undefined)
+      main.responseRequest(detail, response as any)
+
+      if (error) response.emit(eventName, error)
+      else response.emit(eventName)
+      response.emit('error', new Error('duplicate'))
+      response.emit('close')
+
+      expect(events.map((event) => event.type)).toEqual([
+        'registerRequest',
+        'responseReceived',
+        'requestFailed'
+      ])
+      const failed = events[2] as Extract<LegacyCaptureEvent, { type: 'requestFailed' }>
+      expect(failed.data.request.id).toBe(eventName)
+      expect(failed.data.request.requestEndTime).toBeLessThan(10_000_000_000)
+      expect(Boolean(failed.data.canceled)).toBe(canceled)
+      expect(events.some((event) => event.type === 'responseData')).toBe(false)
+      await main.dispose()
     }
-  }
-})
-
-// Mock fs 模块
-vi.mock('fs', () => ({
-  default: {
-    existsSync: mockExistsSync,
-    readFileSync: mockReadFileSync,
-    writeFileSync: mockWriteFileSync
-  }
-}))
-
-// Mock utils/process 模块
-vi.mock('../utils/process', () => ({
-  sleep: mockSleep,
-  checkMainProcessAlive: mockCheckMainProcessAlive
-}))
-
-// Mock utils/file 模块
-vi.mock('../utils/file', () => ({
-  unlinkSafe: mockUnlinkSafe
-}))
-
-// Mock utils 模块 - 添加 generateUUID
-vi.mock('../utils', () => ({
-  warn: mockWarn,
-  generateUUID: mockGenerateUUID
-}))
-
-// Mock hooks/cell 模块
-vi.mock('./hooks/cell', () => ({
-  getCurrentCell: mockGetCurrentCell
-}))
-
-describe('core/fork.ts', () => {
-  beforeEach(() => {
-    vi.useFakeTimers()
-    vi.clearAllMocks()
-    wsInstances.length = 0
-    cpInstances.length = 0
-    mockExistsSync.mockReturnValue(false)
-    mockCheckMainProcessAlive.mockResolvedValue(false)
-    mockGetCurrentCell.mockReturnValue(null)
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
-    vi.restoreAllMocks()
-  })
-
-  describe('MainProcess 类', () => {
-    describe('构造函数', () => {
-      test('当 lock 文件不存在时，创建新的 WebSocket 连接并写入 lock 文件', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 验证 lock 文件被写入
-        expect(mockWriteFileSync).toHaveBeenCalledWith(
-          expect.stringContaining('test-key'),
-          expect.stringContaining(String(process.pid))
-        )
-
-        // 验证 WebSocket 被创建
-        expect(wsInstances.length).toBe(1)
-      })
-
-      test('WebSocket 连接成功后删除 lock 文件', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 验证 lock 文件被删除
-        expect(mockUnlinkSafe).toHaveBeenCalled()
-      })
-
-      test('当 lock 文件存在且进程存活时，跳过创建并输出警告', async () => {
-        mockExistsSync.mockReturnValue(true)
-        mockReadFileSync.mockReturnValue('12345')
-        mockCheckMainProcessAlive.mockResolvedValue(true)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 运行所有待处理的定时器和微任务
-        await vi.runAllTimersAsync()
-
-        // 验证警告被输出
-        expect(mockWarn).toHaveBeenCalledWith(expect.stringContaining('already running'))
-      })
-
-      test('当 lock 文件存在但进程不存活时，删除 lock 文件并继续', async () => {
-        mockExistsSync.mockReturnValue(true)
-        mockReadFileSync.mockReturnValue('12345')
-        mockCheckMainProcessAlive.mockResolvedValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 运行所有待处理的定时器和微任务
-        await vi.runAllTimersAsync()
-
-        // 验证 lock 文件被删除
-        expect(mockUnlinkSafe).toHaveBeenCalled()
-      })
-
-      test('WebSocket 连接错误时，启动子进程', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接错误
-        wsInstances[0].emit('error', new Error('Connection refused'))
-
-        // 验证 fork 被调用
-        expect(mockFork).toHaveBeenCalled()
-      })
-
-      test('子进程发送 READY_MESSAGE 后创建新的 WebSocket 连接', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        const initialWsCount = wsInstances.length
-
-        // 模拟 WebSocket 连接错误
-        wsInstances[0].emit('error', new Error('Connection refused'))
-
-        // 模拟子进程发送 ready 消息
-        cpInstances[0].emit('message', READY_MESSAGE)
-
-        // 验证新的 WebSocket 连接被创建
-        expect(wsInstances.length).toBeGreaterThan(initialWsCount)
-      })
-
-      test('子进程发送非 READY_MESSAGE 时不创建新连接', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接错误
-        wsInstances[0].emit('error', new Error('Connection refused'))
-
-        const wsCountAfterError = wsInstances.length
-
-        // 模拟子进程发送其他消息
-        cpInstances[0].emit('message', 'other-message')
-
-        // 验证没有创建新的 WebSocket 连接
-        expect(wsInstances.length).toBe(wsCountAfterError)
-      })
-
-      test('WebSocket 错误事件被正确记录', async () => {
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 先连接成功
-        wsInstances[0].emit('open')
-
-        // 等待 Promise 解析
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 然后发生错误
-        const error = new Error('WebSocket error')
-        wsInstances[0].emit('error', error)
-
-        // 验证错误被记录
-        expect(consoleSpy).toHaveBeenCalledWith('MainProcess Socket Error: ', error)
-
-        consoleSpy.mockRestore()
-      })
-    })
-
-    describe('send 方法', () => {
-      test('发送数据到 WebSocket', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 发送数据
-        const testData = { type: 'test', data: { foo: 'bar' } }
-        await mainProcess.send(testData)
-
-        // 验证数据被发送
-        expect(mockWsSend).toHaveBeenCalledWith(JSON.stringify(testData))
-      })
-
-      test('当 cell 被中止时，不发送数据', async () => {
-        mockExistsSync.mockReturnValue(false)
-        mockGetCurrentCell.mockReturnValue({
-          isAborted: true,
-          request: new RequestDetail(),
-          pipes: []
-        })
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 清除之前的调用
-        mockWsSend.mockClear()
-
-        // 发送数据
-        await mainProcess.send({ type: 'test' })
-
-        // 验证数据没有被发送
-        expect(mockWsSend).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('sendRequest 方法', () => {
-      test('发送请求数据', async () => {
-        mockExistsSync.mockReturnValue(false)
-        mockGetCurrentCell.mockReturnValue(null)
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 等待 Promise 解析
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 清除之前的调用
-        mockWsSend.mockClear()
-
-        // 发送请求
-        const requestDetail = new RequestDetail()
-        requestDetail.url = 'http://example.com'
-        requestDetail.method = 'GET'
-
-        mainProcess.sendRequest('initRequest', requestDetail)
-
-        // 等待异步发送完成
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 验证数据被发送
-        expect(mockWsSend).toHaveBeenCalledWith(expect.stringContaining('initRequest'))
-      })
-
-      test('返回 this 以支持链式调用', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        const requestDetail = new RequestDetail()
-        const result = mainProcess.sendRequest('initRequest', requestDetail)
-
-        expect(result).toBe(mainProcess)
-      })
-
-      test('当存在 cell 时，应用 pipes', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const mockPipe = vi.fn((req: RequestDetail) => {
-          req.method = 'POST'
-          return req
-        })
-
-        mockGetCurrentCell.mockReturnValue({
-          isAborted: false,
-          request: new RequestDetail(),
-          pipes: [{ type: 'initRequest', pipe: mockPipe }]
-        })
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        const requestDetail = new RequestDetail()
-        requestDetail.method = 'GET'
-
-        mainProcess.sendRequest('initRequest', requestDetail)
-
-        // 验证 pipe 被调用
-        expect(mockPipe).toHaveBeenCalled()
-      })
-
-      test('只应用匹配类型的 pipes', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const initPipe = vi.fn((req: RequestDetail) => req)
-        const updatePipe = vi.fn((req: RequestDetail) => req)
-
-        mockGetCurrentCell.mockReturnValue({
-          isAborted: false,
-          request: new RequestDetail(),
-          pipes: [
-            { type: 'initRequest', pipe: initPipe },
-            { type: 'updateRequest', pipe: updatePipe }
-          ]
-        })
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        const requestDetail = new RequestDetail()
-        mainProcess.sendRequest('initRequest', requestDetail)
-
-        // 验证只有 initPipe 被调用
-        expect(initPipe).toHaveBeenCalled()
-        expect(updatePipe).not.toHaveBeenCalled()
-      })
-    })
-
-    describe('responseRequest 方法', () => {
-      test('处理响应数据并发送', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 等待 Promise 解析
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 清除之前的调用
-        mockWsSend.mockClear()
-
-        // 创建 mock 响应
-        const mockResponse = new EventEmitter() as EventEmitter & {
-          statusCode: number
-          headers: Record<string, string>
-        }
-        mockResponse.statusCode = 200
-        mockResponse.headers = { 'content-type': 'application/json' }
-
-        // 调用 responseRequest
-        mainProcess.responseRequest('test-id', mockResponse as IncomingMessage)
-
-        // 模拟响应数据
-        mockResponse.emit('data', Buffer.from('{"foo":"bar"}'))
-        mockResponse.emit('end')
-
-        // 等待异步操作完成
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 验证数据被发送
-        expect(mockWsSend).toHaveBeenCalledWith(expect.stringContaining('responseData'), {
-          binary: true
-        })
-
-        // 验证发送的数据包含正确的 id 和状态码
-        const sentData = JSON.parse(mockWsSend.mock.calls[0][0])
-        expect(sentData.type).toBe('responseData')
-        expect(sentData.data.id).toBe('test-id')
-        expect(sentData.data.statusCode).toBe(200)
-      })
-
-      test('正确合并多个数据块', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 等待 Promise 解析
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 清除之前的调用
-        mockWsSend.mockClear()
-
-        const mockResponse = new EventEmitter() as EventEmitter & {
-          statusCode: number
-          headers: Record<string, string>
-        }
-        mockResponse.statusCode = 200
-        mockResponse.headers = {}
-
-        mainProcess.responseRequest('test-id', mockResponse as IncomingMessage)
-
-        // 模拟多个数据块
-        mockResponse.emit('data', Buffer.from('Hello'))
-        mockResponse.emit('data', Buffer.from(' '))
-        mockResponse.emit('data', Buffer.from('World'))
-        mockResponse.emit('end')
-
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 验证数据被正确合并
-        const sentData = JSON.parse(mockWsSend.mock.calls[0][0])
-        const rawData = Buffer.from(sentData.data.rawData.data)
-        expect(rawData.toString()).toBe('Hello World')
-      })
-    })
-
-    describe('dispose 方法', () => {
-      test('清理 WebSocket 连接', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 调用 dispose
-        await mainProcess.dispose()
-
-        // 验证 WebSocket 被清理
-        expect(mockWsRemoveAllListeners).toHaveBeenCalled()
-        expect(mockWsTerminate).toHaveBeenCalled()
-      })
-
-      test('清理子进程', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        const mainProcess = new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接错误，触发子进程创建
-        wsInstances[0].emit('error', new Error('Connection refused'))
-
-        // 模拟子进程发送 ready 消息
-        cpInstances[0].emit('message', READY_MESSAGE)
-
-        // 模拟新的 WebSocket 连接成功
-        wsInstances[1].emit('open')
-
-        // 调用 dispose
-        await mainProcess.dispose()
-
-        // 验证子进程被清理
-        expect(mockCpRemoveAllListeners).toHaveBeenCalled()
-        expect(mockCpKill).toHaveBeenCalled()
-      })
-    })
-
-    describe('healthCheck 私有方法', () => {
-      test('WebSocket 连接成功后发送健康检查消息', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 等待 Promise 解析
-        await vi.advanceTimersByTimeAsync(0)
-
-        // 验证健康检查消息被发送
-        expect(mockWsSend).toHaveBeenCalledWith(expect.stringContaining('healthcheck'))
-      })
-
-      test('定时发送健康检查消息', async () => {
-        mockExistsSync.mockReturnValue(false)
-
-        const { MainProcess } = await import('./fork')
-        new MainProcess({ port: 5270, key: 'test-key' })
-
-        // 模拟 WebSocket 连接成功
-        wsInstances[0].emit('open')
-
-        // 清除初始的健康检查调用
-        mockWsSend.mockClear()
-
-        // 推进时间 2 秒
-        await vi.advanceTimersByTimeAsync(2000)
-
-        // 验证健康检查消息被再次发送
-        expect(mockWsSend).toHaveBeenCalledWith(expect.stringContaining('healthcheck'))
-      })
-    })
-  })
-
-  describe('RequestType 类型', () => {
-    test('导出正确的请求类型', async () => {
-      const { MainProcess } = await import('./fork')
-
-      // 验证 MainProcess 类存在
-      expect(MainProcess).toBeDefined()
-      expect(typeof MainProcess).toBe('function')
-    })
-  })
-
-  describe('__dirname 导出', () => {
-    test('导出 __dirname', async () => {
-      const forkModule = await import('./fork')
-
-      expect(forkModule.__dirname).toBeDefined()
-      expect(typeof forkModule.__dirname).toBe('string')
-    })
+  )
+
+  test('dispose removes active response listeners and ignores later stream events', async () => {
+    const { main, bridge, events } = bridgeHarness()
+    const detail = request('dispose')
+    main.sendRequest('registerRequest', detail)
+    const response = new FakeResponse()
+    main.responseRequest(detail, response as any)
+
+    await main.dispose()
+    expect(response.listenerCount('data')).toBe(0)
+    expect(response.listenerCount('end')).toBe(0)
+    response.emit('data', Buffer.from('ignored'))
+    response.emit('end')
+    expect(events.map((event) => event.type)).toEqual(['registerRequest', 'responseReceived'])
+    expect(bridge.dispose).toHaveBeenCalledOnce()
   })
 })

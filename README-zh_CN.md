@@ -1,88 +1,102 @@
-<div align="center">
-  <h1 align="center">
-    <img src="https://github.com/GrinZero/extreme/assets/70185413/415b35ca-6e28-4486-b480-459bda8f1faa" width="100" />
-    <br>Node Network Devtools</h1>
+# Node Network Devtools
 
- <h3 align="center">🔮  让node程序支持用chrome devtool的network选项卡调试</h3>
- <h3 align="center">🦎  等同于浏览器的爬虫体验 </h3>
- <h3 align="center">⚙️  Powered by CDP</h3>
-  <p align="center">
-     <img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJs"/>
-    <img src="https://img.shields.io/badge/Google%20Chrome-4285F4?style=for-the-badge&logo=GoogleChrome&logoColor=white" alt="Chrome"/>
-   <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=TypeScript&logoColor=white" alt="TypeScript" />
- </p>
-
-</div>
-
----
+在标准 Chrome DevTools Network 面板中查看 Node.js 发出的网络请求。
 
 [English](README.md) | 简体中文
 
-## 📖 介绍
+v2 提供两个互斥、完整的后端：
 
-如你所见，添加`--inspect`选项打开的node程序并不支持network标签，因为它不去代理用户请求。
-node network devtools正是为了解决这个问题，它一个允许您使用chrome devtools的network选项卡调试nodejs发出的请求，让debugger过程等同于浏览器中的网络爬虫体验。
+- **Native**：直接连接 Node 实验性的 Network Inspector，不修改应用网络 API。
+- **Legacy**：通过项目自有的标准 CDP Target，捕获 HTTP/HTTPS、Fetch、可选
+  Undici、WebSocket 帧和 SSE 消息。
 
-## 🎮 TODO
+运行时只拥有调试 Target，不拥有 Chrome 进程。打开浏览器必须显式选择；端口默认
+交给操作系统分配；Legacy 应用传输已从旧的 5270 WebSocket/锁文件改为隔离的子进程
+IPC。
 
-- [x] HTTP/HTTPS
-  - [x] req/res headers
-  - [x] payload
-  - [x] json str response body
-  - [x] binary response body
-  - [x] stack follow
-    - [x] show stack
-    - [x] click to jump
-      - [x] base
-      - [x] Sourcemap
-- [x] WebSocket
-  - [x] messages
-  - [x] payload
-  - [x] headers
-- [ ] Compatibility
-  - [x] commonjs
-  - [x] esmodule
-  - [ ] Bun
-- [ ] Undici
-  - [ ] undici.request
-  - [x] undici.fetch
-
-## 👀 预览
-
-![img](https://github.com/GrinZero/node-network-devtools/assets/70185413/5338d8f2-bb54-46fd-b243-a7a5b4af3031)
-
-## 📦 快速开始
-
-### 1. 安装
+## 快速开始
 
 ```bash
-# npm
-npm install node-network-devtools -D
-# or pnpm
-pnpm add node-network-devtools -D
-# or yarn
-yarn add node-network-devtools -D
+npm install --save-dev node-network-devtools
+
+# 不改业务源码直接启动并打开 DevTools
+npx nnd dev --open src/app.js
+
+# 查看当前 Node 与后端的真实能力
+npx nnd doctor --json
 ```
 
-### 2. Usage
+库 API：
 
-只需将以下代码添加到项目的入口文件中即可。
-
-```typescript
+```ts
 import { register } from 'node-network-devtools'
 
-process.env.NODE_ENV === 'development' && register()
+const registration = register({
+  mode: 'auto',
+  requiredCapabilities: ['responseBody'],
+  inspector: { host: '127.0.0.1', port: 0 },
+  devtools: { open: false }
+})
+
+const ready = await registration.ready
+console.log(ready.mode, ready.target, ready.capabilities, ready.fallbackReason)
+
+await registration.openDevtools()
+await registration.dispose()
 ```
 
-如果需要停止调试网络请求并消除副作用，只需使用 `register` 方法的返回值进行清理。
+为了兼容 v1，返回值仍然可以直接调用：`const unregister = register();
+unregister()`。
 
-```typescript
-import { register } from 'node-network-devtools'
+## 能力概览
 
-const unregister = register()
-unregister()
+| 能力                          | Native                 | Legacy |
+| ----------------------------- | ---------------------- | ------ |
+| HTTP / HTTPS / Fetch 生命周期 | 取决于 Node 版本       | 支持   |
+| HTTP/2                        | 仅 Node 22.20+（22.x） | 不支持 |
+| 响应 Body                     | 取决于 Node 版本       | 支持   |
+| 请求 Body                     | 不声明支持             | 支持   |
+| WebSocket 生命周期 / 帧       | 仅生命周期             | 支持   |
+| SSE 消息                      | 不支持                 | 支持   |
+| 请求/响应 Mock                | 不支持                 | 支持   |
+
+Native 能力根据实际 Node 版本和 Inspector 方法探测。强制 Native 时缺少能力会直接
+失败；Auto 改用 Legacy 时会返回结构化原因，不会静默降级。
+
+Native HTTP/2 采用保守白名单：仅 Node 22.20+ 的 22.x 版本声明支持。Node 22.22.3
+已通过非空 h2c 生命周期实测；Node 24.16.0 与 26.8.1 在通过 `setEncoding()` 消费
+非空响应时，会触发上游实验性 Inspector 的 `Missing dataLength` 崩溃。其他及未来
+大版本在独立验证前一律报告为不支持；Legacy 也不捕获 HTTP/2。
+
+## Session、HAR 与 Replay
+
+两个后端都可以持久化 Network Session、外置保存响应 Body、导出 HAR 1.2、关联已有
+`traceparent`，并回放请求：
+
+```ts
+const registration = register({
+  session: { directory: '.nnd/sessions/run-001', har: true }
+})
+
+await registration.ready
+// 执行业务请求
+await registration.dispose()
 ```
 
-## ⚙️ 配置选项
+```bash
+npx nnd replay --dry-run --json .nnd/sessions/run-001
+npx nnd replay capture.har
+```
 
-`register` 函数接受一个可选的 `RegisterOptions` 对象来定制其行为。有关可用选项及其详细说明的完整列表，请参阅[选项文档](apps/web/docs/zh/options.md)。
+Mock 明确只属于 Legacy。Auto 配置 `legacy.mock` 时会选择 Legacy；强制 Native 会返回
+`NND_NATIVE_MOCK_CONFLICT`。
+
+## 文档
+
+- [npm 包完整用法](packages/network-debugger/README.md)
+- [v1 到 v2 迁移说明](docs/v2-migration.md)
+- [v2 架构、Plan 与验收证据](docs/v2-implementation-plan.md)
+
+发布包要求 Node.js `>=18.18`。Node 18/20 虽已 EOL，仍保留迁移兼容测试；新项目建议
+使用仍在维护的 Node 版本。`undici@^6` 是 peer dependency，确保选择 Legacy
+Undici 捕获时修改的是应用使用的同一个包实例。

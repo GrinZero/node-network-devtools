@@ -1,28 +1,54 @@
 {
   "name": "node-network-devtools",
-  "version": "1.0.30",
+  "version": "2.0.0",
   "description": "Inspecting Node.js's Network with Chrome DevTools",
   "homepage": "https://grinzero.github.io/node-network-devtools/",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
-  "types": "./dist/src/index.d.ts",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "nnd": "./dist/cli.mjs",
+    "node-network-devtools": "./dist/cli.mjs"
+  },
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
     "./dev": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts",
-      "require": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./register": {
+      "types": "./dist/preload/register.d.ts",
+      "import": "./dist/register.mjs",
+      "default": "./dist/register.mjs"
+    },
+    "./preload": {
+      "types": "./dist/preload/register.d.ts",
+      "import": "./dist/register.mjs",
+      "default": "./dist/register.mjs"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config.mjs",
+      "require": "./dist/config.js"
     }
   },
   "scripts": {
-    "test": "vitest",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:e2e:native": "node --test test/e2e/native-protocol.test.mjs",
+    "test:e2e:legacy": "node --test test/e2e/legacy/legacy-protocol.test.mjs",
+    "test:e2e:enhancements": "node --test test/e2e/enhancements/enhancements.test.mjs",
+    "test:e2e:cli": "node --test test/e2e/cli/cli.test.mjs",
+    "test:e2e:frontend": "playwright test -c test/e2e/frontend/playwright.config.mjs",
+    "test:ci": "pnpm run test:unit && pnpm run build && pnpm run test:e2e:native && pnpm run test:e2e:legacy && pnpm run test:e2e:enhancements && pnpm run test:e2e:cli && pnpm run test:e2e:frontend",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest --watch",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.preload.config.ts",
     "dev": "vite build --watch --mode development"
   },
   "keywords": [
@@ -47,7 +73,11 @@
   },
   "author": "bugyaluwang <bugyaluwang@qq.com> (https://github.com/GrinZero)",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.18"
+  },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@types/node": "^20.11.0",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
@@ -57,6 +87,7 @@
     "fast-check": "^4.5.3",
     "memfs": "^4.56.10",
     "tslib": "2.6.2",
+    "tsx": "4.23.12",
     "vite": "^5.2.10",
     "vite-plugin-dts": "^3.8.3",
     "vitest": "^4.0.18"
@@ -64,7 +95,6 @@
   "dependencies": {
     "bufferutil": "^4.0.9",
     "iconv-lite": "^0.7.0",
-    "inspector": "^0.5.0",
     "open": "^8.4.2",
     "ws": "^8.17.1"
   },

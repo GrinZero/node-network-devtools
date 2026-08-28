@@ -1,0 +1,291 @@
+{
+  "schemaVersion": 1,
+  "productCommit": "449d47db89109e826eb0e7e0584777365eac3f9b",
+  "tarballSha256": "e97dc360d2fcd5d141b13bca490f603b802dc7fe94f3b6a06a690c7a7f48e2ac",
+  "cases": [
+    {
+      "id": "doctor",
+      "title": "CLI version + Native doctor",
+      "status": "PASS",
+      "command": "nnd --version && node --experimental-network-inspection <isolated-consumer>/node_modules/.bin/nnd doctor --json",
+      "actual": {
+        "version": "2.0.0",
+        "schemaVersion": 1,
+        "ok": true,
+        "nodeVersion": "24.16.0",
+        "packageVersion": "2.0.0",
+        "experimentalFlag": true,
+        "missingRequired": [],
+        "selection": {
+          "requested": "auto",
+          "selected": "native"
+        },
+        "capabilities": {
+          "http": true,
+          "https": true,
+          "fetch": true,
+          "http2": false,
+          "responseBody": true,
+          "requestBody": false,
+          "websocketLifecycle": true,
+          "websocketFrames": false,
+          "sseMessages": false,
+          "initiator": true
+        }
+      }
+    },
+    {
+      "id": "native",
+      "title": "Zero-code nnd dev · NATIVE",
+      "status": "PASS",
+      "command": "nnd dev --no-wait --mode native <repo-root>/packages/network-debugger/test/e2e/cli/fixtures/probe.mjs",
+      "actual": {
+        "type": "fixture-ready",
+        "preloadInjected": true,
+        "mode": "native",
+        "execArgv": [
+          "--experimental-network-inspection",
+          "--inspect=127.0.0.1:0",
+          "--import=file://<isolated-consumer>/node_modules/node-network-devtools/dist/register.mjs"
+        ],
+        "target": {
+          "id": "1c0c8e41-a808-4721-8aa6-6834bba2c010",
+          "type": "node",
+          "discoveryUrl": "http://127.0.0.1:60423/json/list",
+          "webSocketDebuggerUrl": "ws://127.0.0.1:60423/1c0c8e41-a808-4721-8aa6-6834bba2c010"
+        },
+        "capabilities": {
+          "http": true,
+          "https": true,
+          "fetch": true,
+          "http2": false,
+          "responseBody": true,
+          "requestBody": false,
+          "websocketLifecycle": true,
+          "websocketFrames": false,
+          "sseMessages": false,
+          "initiator": true
+        }
+      }
+    },
+    {
+      "id": "legacy",
+      "title": "Zero-code nnd dev · LEGACY",
+      "status": "PASS",
+      "command": "nnd dev --no-wait --mode legacy <repo-root>/packages/network-debugger/test/e2e/cli/fixtures/probe.mjs",
+      "actual": {
+        "type": "fixture-ready",
+        "preloadInjected": true,
+        "mode": "legacy",
+        "execArgv": [
+          "--import=file://<isolated-consumer>/node_modules/node-network-devtools/dist/register.mjs"
+        ],
+        "target": {
+          "id": "node-network-devtools-a426be27-20c0-4b1a-b552-be1414423c06",
+          "type": "node",
+          "discoveryUrl": "http://127.0.0.1:60436/json/list",
+          "webSocketDebuggerUrl": "ws://127.0.0.1:60436/devtools/page/node-network-devtools-a426be27-20c0-4b1a-b552-be1414423c06"
+        },
+        "capabilities": {
+          "http": true,
+          "https": true,
+          "fetch": true,
+          "http2": false,
+          "responseBody": true,
+          "requestBody": true,
+          "websocketLifecycle": true,
+          "websocketFrames": true,
+          "sseMessages": true,
+          "initiator": true
+        }
+      }
+    },
+    {
+      "id": "conflict",
+      "title": "Forced Native + Mock conflict",
+      "status": "PASS",
+      "command": "node <evidence-root>/manual-native-mock-conflict.mjs",
+      "actual": {
+        "name": "RuntimeRegistrationError",
+        "code": "NND_NATIVE_MOCK_CONFLICT",
+        "message": "Request/response mocking is available only with the Legacy backend.",
+        "details": {
+          "mode": "native",
+          "mockRuleCount": 1,
+          "hint": "Use mode: \"legacy\" or mode: \"auto\" when legacy.mock rules are configured."
+        }
+      }
+    },
+    {
+      "id": "replay",
+      "title": "Public nnd replay · dry + real",
+      "status": "PASS",
+      "command": "nnd replay --dry-run --json <evidence-root>/artifacts/cli-replay-fixture.har && nnd replay --json <evidence-root>/artifacts/cli-replay-fixture.har",
+      "actual": {
+        "dryRun": {
+          "dryRun": true,
+          "startedAt": "2026-08-28T08:00:40.372Z",
+          "completedAt": "2026-08-28T08:00:40.374Z",
+          "requests": [
+            {
+              "index": 0,
+              "requestId": "cli-replay-get",
+              "method": "GET",
+              "url": "http://127.0.0.1:60344/replay-get?case=cli-public-replay",
+              "headers": {}
+            },
+            {
+              "index": 1,
+              "requestId": "cli-replay-post",
+              "method": "POST",
+              "url": "http://127.0.0.1:60344/replay-post?case=cli-public-replay",
+              "headers": {
+                "content-type": "text/plain; charset=utf-8"
+              },
+              "body": "cli-replay-request-body"
+            }
+          ],
+          "results": [
+            {
+              "request": {
+                "index": 0,
+                "requestId": "cli-replay-get",
+                "method": "GET",
+                "url": "http://127.0.0.1:60344/replay-get?case=cli-public-replay",
+                "headers": {}
+              },
+              "dryRun": true,
+              "ok": true,
+              "durationMs": 0
+            },
+            {
+              "request": {
+                "index": 1,
+                "requestId": "cli-replay-post",
+                "method": "POST",
+                "url": "http://127.0.0.1:60344/replay-post?case=cli-public-replay",
+                "headers": {
+                  "content-type": "text/plain; charset=utf-8"
+                },
+                "body": "cli-replay-request-body"
+              },
+              "dryRun": true,
+              "ok": true,
+              "durationMs": 0
+            }
+          ],
+          "succeeded": 2,
+          "failed": 0
+        },
+        "real": {
+          "dryRun": false,
+          "startedAt": "2026-08-28T08:00:40.450Z",
+          "completedAt": "2026-08-28T08:00:40.463Z",
+          "requests": [
+            {
+              "index": 0,
+              "requestId": "cli-replay-get",
+              "method": "GET",
+              "url": "http://127.0.0.1:60344/replay-get?case=cli-public-replay",
+              "headers": {}
+            },
+            {
+              "index": 1,
+              "requestId": "cli-replay-post",
+              "method": "POST",
+              "url": "http://127.0.0.1:60344/replay-post?case=cli-public-replay",
+              "headers": {
+                "content-type": "text/plain; charset=utf-8"
+              },
+              "body": "cli-replay-request-body"
+            }
+          ],
+          "results": [
+            {
+              "request": {
+                "index": 0,
+                "requestId": "cli-replay-get",
+                "method": "GET",
+                "url": "http://127.0.0.1:60344/replay-get?case=cli-public-replay",
+                "headers": {}
+              },
+              "dryRun": false,
+              "ok": true,
+              "status": 200,
+              "statusText": "OK",
+              "responseHeaders": {
+                "connection": "keep-alive",
+                "content-type": "text/plain; charset=utf-8",
+                "date": "Fri, 28 Aug 2026 08:00:40 GMT",
+                "keep-alive": "timeout=5",
+                "transfer-encoding": "chunked"
+              },
+              "durationMs": 8.241875000000007
+            },
+            {
+              "request": {
+                "index": 1,
+                "requestId": "cli-replay-post",
+                "method": "POST",
+                "url": "http://127.0.0.1:60344/replay-post?case=cli-public-replay",
+                "headers": {
+                  "content-type": "text/plain; charset=utf-8"
+                },
+                "body": "cli-replay-request-body"
+              },
+              "dryRun": false,
+              "ok": true,
+              "status": 201,
+              "statusText": "Created",
+              "responseHeaders": {
+                "connection": "keep-alive",
+                "content-type": "application/json; charset=utf-8",
+                "date": "Fri, 28 Aug 2026 08:00:40 GMT",
+                "keep-alive": "timeout=5",
+                "transfer-encoding": "chunked"
+              },
+              "durationMs": 3.082583999999997
+            }
+          ],
+          "succeeded": 2,
+          "failed": 0
+        },
+        "originRequests": [
+          {
+            "method": "GET",
+            "url": "/replay-get?case=cli-public-replay",
+            "body": ""
+          },
+          {
+            "method": "POST",
+            "url": "/replay-post?case=cli-public-replay",
+            "body": "cli-replay-request-body"
+          }
+        ]
+      }
+    },
+    {
+      "id": "open",
+      "title": "nnd dev --open · authoritative target",
+      "status": "PASS",
+      "command": "nnd dev --open --mode native <repo-root>/packages/network-debugger/test/e2e/cli/fixtures/probe.mjs",
+      "actual": {
+        "preloadInjected": true,
+        "mode": "native",
+        "inspectWait": "--inspect-wait=127.0.0.1:0",
+        "target": {
+          "id": "7e52e8aa-c81d-45c8-ad04-26d18b69cbca",
+          "type": "node",
+          "discoveryUrl": "http://127.0.0.1:60572/json/list",
+          "webSocketDebuggerUrl": "ws://127.0.0.1:60572/7e52e8aa-c81d-45c8-ad04-26d18b69cbca"
+        },
+        "openedExactlyOnce": true,
+        "openedFrontend": {
+          "frontendUrl": "devtools://devtools/bundled/js_app.html?experiments=true&v8only=true&ws=127.0.0.1:60572/7e52e8aa-c81d-45c8-ad04-26d18b69cbca",
+          "webSocketDebuggerUrl": "ws://127.0.0.1:60572/7e52e8aa-c81d-45c8-ad04-26d18b69cbca"
+        },
+        "launcherVerification": "OS browser spawn redirected to an exact-target CDP verifier"
+      }
+    }
+  ]
+}

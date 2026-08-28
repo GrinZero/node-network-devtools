@@ -1,33 +1,15 @@
-import { IncomingMessage } from 'http'
-import { CDPCallFrame } from '../../../common'
-import {
-  formatHeadersToHeaderText,
-  getTimestamp,
-  parseRawHeaders,
-  stringifyNestedObj
-} from '../../../utils'
+import type {
+  LegacyWebSocketFrame,
+  LegacyWebSocketHandshake
+} from '../../../legacy-bridge/contracts'
+import { formatHeadersToHeaderText, parseRawHeaders, stringifyNestedObj } from '../../../utils'
 import { createPlugin, useHandler } from '../common'
 import { NetworkPluginCore } from '../network'
-
-export interface WebSocketFrameSent {
-  requestId: string
-  response: {
-    payloadData: string
-    opcode: number
-    mask: boolean
-  }
-}
 
 export interface WebSocketCreated {
   requestId: string
   url: string
-  initiator: {
-    type: string
-    stack: {
-      callFrames: CDPCallFrame[]
-    }
-  }
-  response: IncomingMessage
+  response: LegacyWebSocketHandshake
 }
 
 export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => {
@@ -44,7 +26,7 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
         return
       }
 
-      const convertedResponseHeaders = parseRawHeaders(response.rawHeaders)
+      const convertedResponseHeaders = parseRawHeaders([...response.rawHeaders])
 
       await devtool.send({
         method: 'Network.webSocketCreated',
@@ -57,7 +39,7 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
       await devtool.send({
         method: 'Network.webSocketWillSendHandshakeRequest',
         params: {
-          wallTime: Date.now(),
+          wallTime: Date.now() / 1000,
           timestamp: devtool.getTimestamp(),
           requestId: request.id,
           request: {
@@ -90,7 +72,7 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
     }
   )
 
-  useHandler<WebSocketFrameSent>('Network.webSocketFrameSent', async ({ data }) => {
+  useHandler<LegacyWebSocketFrame>('Network.webSocketFrameSent', async ({ data }) => {
     if (!data.requestId) {
       return
     }
@@ -101,12 +83,12 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
         requestId: data.requestId,
         response: data.response,
         // Network中数据时间戳
-        timestamp: getTimestamp()
+        timestamp: devtool.getTimestamp()
       }
     })
   })
 
-  useHandler<WebSocketFrameSent>('Network.webSocketFrameReceived', async ({ data }) => {
+  useHandler<LegacyWebSocketFrame>('Network.webSocketFrameReceived', async ({ data }) => {
     if (!data.requestId) {
       return
     }
@@ -115,21 +97,25 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
       params: {
         requestId: data.requestId,
         response: data.response,
-        timestamp: getTimestamp()
+        timestamp: devtool.getTimestamp()
       }
     })
   })
 
-  useHandler<WebSocketFrameSent>('Network.webSocketClosed', async ({ data }) => {
+  useHandler<{ requestId: string }>('Network.webSocketClosed', async ({ data }) => {
     if (!data.requestId) {
       return
     }
-    await devtool.send({
-      method: 'Network.webSocketClosed',
-      params: {
-        requestId: data.requestId,
-        timestamp: getTimestamp()
-      }
-    })
+    try {
+      await devtool.send({
+        method: 'Network.webSocketClosed',
+        params: {
+          requestId: data.requestId,
+          timestamp: devtool.getTimestamp()
+        }
+      })
+    } finally {
+      networkPlugin.removeRequest(data.requestId)
+    }
   })
 })

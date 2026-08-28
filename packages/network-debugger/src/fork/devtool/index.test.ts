@@ -1,533 +1,371 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
+import { once } from 'node:events'
+import { setTimeout as delay } from 'node:timers/promises'
+import { afterEach, describe, expect, test } from 'vitest'
+import { WebSocket } from 'ws'
+import {
+  CDP_ERROR_CODES,
+  DevtoolServer,
+  DevtoolServerClosedError,
+  MAX_BUFFERED_EVENT_BYTES,
+  MAX_BUFFERED_EVENTS
+} from './index'
 
-// 使用 vi.hoisted 确保变量在 mock 提升时可用
-const {
-  mockWsServerInstance,
-  mockWsSocketInstance,
-  mockOpen,
-  mockWsDebuggerInstance,
-  wsServerHandlers,
-  wsSocketHandlers,
-  wsDebuggerHandlers,
-  MockServer,
-  MockWebSocket
-} = vi.hoisted(() => {
-  const wsServerHandlers = new Map<string, ((...args: unknown[]) => void)[]>()
-  const wsSocketHandlers = new Map<string, ((...args: unknown[]) => void)[]>()
-  const wsDebuggerHandlers = new Map<string, ((...args: unknown[]) => void)[]>()
+type JsonMessage = Record<string, any>
 
-  const mockWsServerInstance = {
-    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-      if (!wsServerHandlers.has(event)) {
-        wsServerHandlers.set(event, [])
+class ProtocolClient {
+  readonly socket: WebSocket
+  private readonly messages: JsonMessage[] = []
+  private readonly waiters: Array<{
+    predicate(message: JsonMessage): boolean
+    resolve(message: JsonMessage): void
+    reject(error: Error): void
+    timer: ReturnType<typeof setTimeout>
+  }> = []
+
+  private constructor(url: string) {
+    this.socket = new WebSocket(url)
+    this.socket.on('message', (raw) => {
+      const message = JSON.parse(raw.toString()) as JsonMessage
+      const waiterIndex = this.waiters.findIndex((waiter) => waiter.predicate(message))
+      if (waiterIndex >= 0) {
+        const [waiter] = this.waiters.splice(waiterIndex, 1)
+        clearTimeout(waiter.timer)
+        waiter.resolve(message)
+      } else {
+        this.messages.push(message)
       }
-      wsServerHandlers.get(event)!.push(handler)
-    }),
-    close: vi.fn()
+    })
   }
 
-  const mockWsSocketInstance = {
-    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-      if (!wsSocketHandlers.has(event)) {
-        wsSocketHandlers.set(event, [])
-      }
-      wsSocketHandlers.get(event)!.push(handler)
-    }),
-    send: vi.fn(),
-    close: vi.fn()
+  static async connect(url: string) {
+    const client = new ProtocolClient(url)
+    await once(client.socket, 'open')
+    return client
   }
 
-  const mockWsDebuggerInstance = {
-    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-      if (!wsDebuggerHandlers.has(event)) {
-        wsDebuggerHandlers.set(event, [])
-      }
-      wsDebuggerHandlers.get(event)!.push(handler)
-    }),
-    send: vi.fn(),
-    close: vi.fn()
+  send(message: unknown) {
+    this.socket.send(JSON.stringify(message))
   }
 
-  // 使用 class 语法创建 mock 构造函数
-  class MockServer {
-    constructor() {
-      return mockWsServerInstance
-    }
+  sendRaw(message: string) {
+    this.socket.send(message)
   }
 
-  class MockWebSocket {
-    constructor() {
-      return mockWsDebuggerInstance
-    }
+  next(
+    predicate: (message: JsonMessage) => boolean = () => true,
+    timeoutMs = 2_000
+  ): Promise<JsonMessage> {
+    const index = this.messages.findIndex(predicate)
+    if (index >= 0) return Promise.resolve(this.messages.splice(index, 1)[0])
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const waiterIndex = this.waiters.findIndex((waiter) => waiter.timer === timer)
+        if (waiterIndex >= 0) this.waiters.splice(waiterIndex, 1)
+        reject(new Error('Timed out waiting for a CDP message.'))
+      }, timeoutMs)
+      this.waiters.push({ predicate, resolve, reject, timer })
+    })
   }
 
-  const mockOpen = vi.fn()
-
-  return {
-    mockWsServerInstance,
-    mockWsSocketInstance,
-    mockOpen,
-    mockWsDebuggerInstance,
-    wsServerHandlers,
-    wsSocketHandlers,
-    wsDebuggerHandlers,
-    MockServer,
-    MockWebSocket
+  async close() {
+    if (this.socket.readyState === WebSocket.CLOSED) return
+    const closed = once(this.socket, 'close')
+    this.socket.close()
+    await closed
   }
+}
+
+const servers = new Set<DevtoolServer>()
+const clients = new Set<ProtocolClient>()
+
+async function createServer(options: Partial<ConstructorParameters<typeof DevtoolServer>[0]> = {}) {
+  const server = new DevtoolServer({ port: 0, ...options })
+  servers.add(server)
+  const target = await server.ready
+  return { server, target }
+}
+
+async function connect(url: string) {
+  const client = await ProtocolClient.connect(url)
+  clients.add(client)
+  return client
+}
+
+afterEach(async () => {
+  await Promise.all([...clients].map((client) => client.close().catch(() => undefined)))
+  clients.clear()
+  await Promise.all([...servers].map((server) => server.close()))
+  servers.clear()
 })
 
-// Mock ws 模块
-vi.mock('ws', () => {
-  return {
-    Server: MockServer,
-    WebSocket: MockWebSocket
-  }
-})
+describe('Legacy discoverable CDP target', () => {
+  test('binds port 0 before publishing one consistent loopback target', async () => {
+    const server = new DevtoolServer({ port: 0 })
+    servers.add(server)
+    expect(server.target).toBeUndefined()
 
-// Mock open 模块
-vi.mock('open', () => {
-  return {
-    default: mockOpen,
-    apps: {
-      chrome: 'google-chrome'
+    const target = await server.ready
+    const discovery = new URL(target.discoveryUrl)
+    expect(discovery.hostname).toBe('127.0.0.1')
+    expect(Number(discovery.port)).toBeGreaterThan(0)
+    expect(target.webSocketDebuggerUrl).toMatch(
+      new RegExp(`^ws://127\\.0\\.0\\.1:${discovery.port}/devtools/page/${target.id}$`)
+    )
+    expect(server.target).toEqual(target)
+
+    const list = await fetch(target.discoveryUrl).then((response) => response.json())
+    const alias = await fetch(new URL('/json', target.discoveryUrl)).then((response) =>
+      response.json()
+    )
+    const version = await fetch(new URL('/json/version', target.discoveryUrl)).then((response) =>
+      response.json()
+    )
+    const protocol = await fetch(new URL('/json/protocol', target.discoveryUrl)).then((response) =>
+      response.json()
+    )
+
+    expect(list).toEqual([target])
+    expect(alias).toEqual([target])
+    expect(version).toMatchObject({
+      Browser: 'node-network-devtools/2',
+      'Protocol-Version': '1.3',
+      webSocketDebuggerUrl: target.webSocketDebuggerUrl
+    })
+    expect(protocol.version).toEqual({ major: '1', minor: '3' })
+    expect(protocol.domains.map((domain: { domain: string }) => domain.domain)).toEqual(
+      expect.arrayContaining(['Network', 'Debugger', 'Runtime', 'Schema'])
+    )
+
+    const notFound = await fetch(new URL('/not-a-target', target.discoveryUrl))
+    expect(notFound.status).toBe(404)
+  })
+
+  test('accepts upgrades only on the published WebSocket path', async () => {
+    const { target } = await createServer()
+    const wrongUrl = new URL(target.webSocketDebuggerUrl)
+    wrongUrl.pathname = '/devtools/page/wrong-target'
+    const socket = new WebSocket(wrongUrl)
+    const outcome = Promise.race([
+      once(socket, 'open').then(() => 'open'),
+      once(socket, 'error').then(() => 'error'),
+      once(socket, 'unexpected-response').then(() => 'rejected')
+    ])
+    await expect(outcome).resolves.not.toBe('open')
+    socket.terminate()
+  })
+
+  test('uses a parent-supplied stable target identity in discovery and WebSocket URLs', async () => {
+    const { target } = await createServer({ targetId: 'stable.parent-target_1' })
+    expect(target.id).toBe('stable.parent-target_1')
+    expect(new URL(target.webSocketDebuggerUrl).pathname).toBe(
+      '/devtools/page/stable.parent-target_1'
+    )
+  })
+
+  test('single-casts same-id async command responses to their source clients', async () => {
+    const { server, target } = await createServer()
+    server.on(async (_error, message, context) => {
+      if (!message || !('method' in message) || message.method !== 'Test.echo' || !context) {
+        return false
+      }
+      const token = String(message.params?.token)
+      if (token === 'slow') await delay(30)
+      await context.result({ token })
+      return true
+    })
+
+    const first = await connect(target.webSocketDebuggerUrl)
+    const second = await connect(target.webSocketDebuggerUrl)
+    first.send({ id: 7, method: 'Test.echo', params: { token: 'slow' } })
+    second.send({ id: 7, method: 'Test.echo', params: { token: 'fast' } })
+
+    await expect(second.next((message) => message.id === 7)).resolves.toEqual({
+      id: 7,
+      result: { token: 'fast' }
+    })
+    await expect(first.next((message) => message.id === 7)).resolves.toEqual({
+      id: 7,
+      result: { token: 'slow' }
+    })
+  })
+
+  test('preserves legacy devtool.send response routing across async handler work', async () => {
+    const { server, target } = await createServer()
+    server.on(async (_error, message) => {
+      if (!message || !('method' in message) || message.method !== 'Test.legacyReply') return false
+      await delay(Number(message.params?.delay ?? 0))
+      await server.send({ id: message.id!, result: { owner: message.params?.owner } })
+      return true
+    })
+    const first = await connect(target.webSocketDebuggerUrl)
+    const second = await connect(target.webSocketDebuggerUrl)
+
+    first.send({ id: 'same', method: 'Test.legacyReply', params: { owner: 'first', delay: 20 } })
+    second.send({ id: 'same', method: 'Test.legacyReply', params: { owner: 'second' } })
+
+    expect(await second.next((message) => message.id === 'same')).toEqual({
+      id: 'same',
+      result: { owner: 'second' }
+    })
+    expect(await first.next((message) => message.id === 'same')).toEqual({
+      id: 'same',
+      result: { owner: 'first' }
+    })
+  })
+
+  test('broadcasts events to every connected frontend', async () => {
+    const { server, target } = await createServer()
+    const first = await connect(target.webSocketDebuggerUrl)
+    const second = await connect(target.webSocketDebuggerUrl)
+    first.send({ id: 1, method: 'Network.enable' })
+    second.send({ id: 2, method: 'Network.enable' })
+    await first.next((message) => message.id === 1)
+    await second.next((message) => message.id === 2)
+    const event = {
+      method: 'Network.requestWillBeSent',
+      params: { requestId: 'broadcast-request' }
     }
-  }
-})
 
-// Mock common 模块
-vi.mock('../../common', () => ({
-  IS_DEV_MODE: false,
-  REMOTE_DEBUGGER_PORT: 9333
-}))
-
-// Mock utils 模块
-vi.mock('../../utils', () => ({
-  log: vi.fn()
-}))
-
-describe('fork/devtool/index.ts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    wsServerHandlers.clear()
-    wsSocketHandlers.clear()
-    wsDebuggerHandlers.clear()
+    await server.send(event)
+    await expect(first.next((message) => message.method === event.method)).resolves.toEqual(event)
+    await expect(second.next((message) => message.method === event.method)).resolves.toEqual(event)
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
+  test('sends Network events only to clients that enabled the domain', async () => {
+    const { server, target } = await createServer()
+    const enabled = await connect(target.webSocketDebuggerUrl)
+    const disabled = await connect(target.webSocketDebuggerUrl)
+    enabled.send({ id: 'enable', method: 'Network.enable' })
+    await enabled.next((message) => message.id === 'enable')
 
-  describe('DevtoolServer 类', () => {
-    describe('构造函数', () => {
-      test('创建 WebSocket Server 并监听指定端口', async () => {
-        const { DevtoolServer } = await import('./index')
+    await server.send({
+      method: 'Network.loadingFinished',
+      params: { requestId: 'enabled-only' }
+    })
+    expect(
+      await enabled.next((message) => message.params?.requestId === 'enabled-only')
+    ).toMatchObject({
+      method: 'Network.loadingFinished'
+    })
+    await expect(
+      disabled.next((message) => message.params?.requestId === 'enabled-only', 100)
+    ).rejects.toThrow('Timed out')
 
-        const server = new DevtoolServer({ port: 5271 })
+    enabled.send({ id: 'disable', method: 'Network.disable' })
+    await enabled.next((message) => message.id === 'disable')
+    await server.send({ method: 'Network.loadingFinished', params: { requestId: 'disabled-now' } })
+    await expect(
+      enabled.next((message) => message.params?.requestId === 'disabled-now', 100)
+    ).rejects.toThrow('Timed out')
+  }, 6_000)
 
-        expect(server).toBeDefined()
-      })
+  test('returns standard results/errors for zero, string, unknown, invalid and thrown commands', async () => {
+    const { server, target } = await createServer()
+    server.on(async (_error, message, context) => {
+      if (!message || !('method' in message) || !context) return false
+      if (message.method === 'Test.fail') throw new Error('handler exploded')
+      if (message.method === 'Test.applicationError') {
+        await context.error(CDP_ERROR_CODES.SERVER_ERROR, 'request body unavailable')
+        return true
+      }
+      return false
+    })
+    const client = await connect(target.webSocketDebuggerUrl)
 
-      test('监听 listening 事件', async () => {
-        const { DevtoolServer } = await import('./index')
+    client.send({ id: 0, method: 'Network.enable', params: {} })
+    expect(await client.next((message) => message.id === 0)).toEqual({ id: 0, result: {} })
 
-        new DevtoolServer({ port: 5271 })
-
-        expect(mockWsServerInstance.on).toHaveBeenCalledWith('listening', expect.any(Function))
-      })
-
-      test('监听 connection 事件', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        new DevtoolServer({ port: 5271 })
-
-        expect(mockWsServerInstance.on).toHaveBeenCalledWith('connection', expect.any(Function))
-      })
-
-      test('autoOpenDevtool 默认为 true', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        new DevtoolServer({ port: 5271 })
-
-        // 触发 listening 事件
-        const listeningHandler = wsServerHandlers.get('listening')?.[0]
-        if (listeningHandler) {
-          listeningHandler()
-        }
-
-        // 由于 autoOpenDevtool 默认为 true，应该调用 open
-        // 但由于 IS_DEV_MODE 被 mock 为 false，会尝试打开浏览器
-        expect(mockOpen).toHaveBeenCalled()
-      })
-
-      test('autoOpenDevtool 为 false 时不自动打开', async () => {
-        vi.clearAllMocks()
-        wsServerHandlers.clear()
-
-        const { DevtoolServer } = await import('./index')
-
-        new DevtoolServer({ port: 5271, autoOpenDevtool: false })
-
-        // 触发 listening 事件
-        const listeningHandler = wsServerHandlers.get('listening')?.[0]
-        if (listeningHandler) {
-          listeningHandler()
-        }
-
-        // autoOpenDevtool 为 false，不应该调用 open
-        expect(mockOpen).not.toHaveBeenCalled()
-      })
-
-      test('onConnect 回调在连接时被调用', async () => {
-        const { DevtoolServer } = await import('./index')
-        const onConnect = vi.fn()
-
-        new DevtoolServer({ port: 5271, onConnect })
-
-        // 触发 connection 事件
-        const connectionHandler = wsServerHandlers.get('connection')?.[0]
-        if (connectionHandler) {
-          connectionHandler(mockWsSocketInstance)
-        }
-
-        expect(onConnect).toHaveBeenCalled()
-      })
-
-      test('onClose 回调在连接关闭时被调用', async () => {
-        const { DevtoolServer } = await import('./index')
-        const onClose = vi.fn()
-
-        new DevtoolServer({ port: 5271, onClose })
-
-        // 触发 connection 事件
-        const connectionHandler = wsServerHandlers.get('connection')?.[0]
-        if (connectionHandler) {
-          connectionHandler(mockWsSocketInstance)
-        }
-
-        // 触发 socket close 事件
-        const closeHandler = wsSocketHandlers.get('close')?.[0]
-        if (closeHandler) {
-          closeHandler()
-        }
-
-        expect(onClose).toHaveBeenCalled()
-      })
+    client.send({ id: 'debugger', method: 'Debugger.enable', params: {} })
+    expect(await client.next((message) => message.id === 'debugger')).toMatchObject({
+      id: 'debugger',
+      result: { debuggerId: target.id }
     })
 
-    describe('消息处理', () => {
-      test('接收到消息时通知所有监听器', async () => {
-        const { DevtoolServer } = await import('./index')
-        const listener = vi.fn()
-
-        const server = new DevtoolServer({ port: 5271 })
-        server.on(listener)
-
-        // 触发 connection 事件
-        const connectionHandler = wsServerHandlers.get('connection')?.[0]
-        if (connectionHandler) {
-          connectionHandler(mockWsSocketInstance)
-        }
-
-        // 触发 message 事件
-        const messageHandler = wsSocketHandlers.get('message')?.[0]
-        const testMessage = { method: 'Network.enable', params: {} }
-        if (messageHandler) {
-          messageHandler(Buffer.from(JSON.stringify(testMessage)))
-        }
-
-        expect(listener).toHaveBeenCalledWith(null, testMessage)
-      })
-
-      test('接收到错误时通知所有监听器', async () => {
-        const { DevtoolServer } = await import('./index')
-        const listener = vi.fn()
-
-        const server = new DevtoolServer({ port: 5271 })
-        server.on(listener)
-
-        // 触发 connection 事件
-        const connectionHandler = wsServerHandlers.get('connection')?.[0]
-        if (connectionHandler) {
-          connectionHandler(mockWsSocketInstance)
-        }
-
-        // 触发 error 事件
-        const errorHandler = wsSocketHandlers.get('error')?.[0]
-        const testError = new Error('WebSocket error')
-        if (errorHandler) {
-          errorHandler(testError)
-        }
-
-        expect(listener).toHaveBeenCalledWith(testError)
-      })
+    client.send({ id: 2, method: 'Missing.command', params: {} })
+    expect(await client.next((message) => message.id === 2)).toMatchObject({
+      id: 2,
+      error: { code: CDP_ERROR_CODES.METHOD_NOT_FOUND }
     })
 
-    describe('send 方法', () => {
-      test('发送消息到 WebSocket', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        // 触发 connection 事件以建立连接
-        const connectionHandler = wsServerHandlers.get('connection')?.[0]
-        if (connectionHandler) {
-          connectionHandler(mockWsSocketInstance)
-        }
-
-        const message = { method: 'Network.requestWillBeSent', params: { requestId: '1' } }
-        await server.send(message)
-
-        expect(mockWsSocketInstance.send).toHaveBeenCalledWith(JSON.stringify(message))
-      })
-
-      test('发送响应消息', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        // 触发 connection 事件
-        const connectionHandler = wsServerHandlers.get('connection')?.[0]
-        if (connectionHandler) {
-          connectionHandler(mockWsSocketInstance)
-        }
-
-        const response = { id: '1', result: { body: 'test' } }
-        await server.send(response)
-
-        expect(mockWsSocketInstance.send).toHaveBeenCalledWith(JSON.stringify(response))
-      })
-
-      test('发送错误响应消息', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        // 触发 connection 事件
-        const connectionHandler = wsServerHandlers.get('connection')?.[0]
-        if (connectionHandler) {
-          connectionHandler(mockWsSocketInstance)
-        }
-
-        const errorResponse = { id: '2', error: { code: -32601, message: 'Method not found' } }
-        await server.send(errorResponse)
-
-        expect(mockWsSocketInstance.send).toHaveBeenCalledWith(JSON.stringify(errorResponse))
-      })
+    client.send({ id: 3, method: 'Network.enable', params: [] })
+    expect(await client.next((message) => message.id === 3)).toMatchObject({
+      id: 3,
+      error: { code: CDP_ERROR_CODES.INVALID_PARAMS }
     })
 
-    describe('close 方法', () => {
-      test('关闭 WebSocket Server', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-        server.close()
-
-        expect(mockWsServerInstance.close).toHaveBeenCalled()
-      })
-
-      test('关闭浏览器进程（如果存在）', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const mockBrowserProcess = { kill: vi.fn() }
-        mockOpen.mockResolvedValue(mockBrowserProcess)
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        // 触发 listening 事件以打开浏览器
-        const listeningHandler = wsServerHandlers.get('listening')?.[0]
-        if (listeningHandler) {
-          listeningHandler()
-        }
-
-        // 等待 open 完成
-        await vi.waitFor(() => {
-          expect(mockOpen).toHaveBeenCalled()
-        })
-
-        // 等待异步操作完成
-        await new Promise((resolve) => setTimeout(resolve, 0))
-
-        server.close()
-
-        expect(mockWsServerInstance.close).toHaveBeenCalled()
-      })
+    client.send({ id: 4, method: 'Test.fail' })
+    expect(await client.next((message) => message.id === 4)).toMatchObject({
+      id: 4,
+      error: { code: CDP_ERROR_CODES.INTERNAL_ERROR, message: 'handler exploded' }
     })
 
-    describe('open 方法', () => {
-      test('在开发模式下不打开浏览器', async () => {
-        // 重新 mock common 模块为开发模式
-        vi.doMock('../../common', () => ({
-          IS_DEV_MODE: true,
-          REMOTE_DEBUGGER_PORT: 9333
-        }))
-
-        vi.clearAllMocks()
-
-        // 重新导入模块
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271, autoOpenDevtool: false })
-        await server.open()
-
-        // 在开发模式下不应该调用 open
-        // 注意：由于模块缓存，这个测试可能需要特殊处理
-      })
-
-      test('在非开发模式下打开 Chrome DevTools', async () => {
-        vi.clearAllMocks()
-
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271, autoOpenDevtool: false })
-        await server.open()
-
-        expect(mockOpen).toHaveBeenCalledWith(
-          expect.stringContaining('devtools://devtools/bundled/inspector.html'),
-          expect.objectContaining({
-            app: expect.objectContaining({
-              name: 'google-chrome'
-            }),
-            wait: true
-          })
-        )
-      })
-
-      test('打开失败时输出警告但不抛出错误', async () => {
-        vi.clearAllMocks()
-
-        mockOpen.mockRejectedValue(new Error('Failed to open'))
-        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271, autoOpenDevtool: false })
-        await server.open()
-
-        expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Open devtools failed'))
-
-        consoleWarnSpy.mockRestore()
-      })
-    })
-
-    describe('继承 BaseDevtoolServer', () => {
-      test('继承 timestamp 属性', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        expect(server.timestamp).toBe(0)
-      })
-
-      test('继承 getTimestamp 方法', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        expect(typeof server.getTimestamp).toBe('function')
-        expect(typeof server.getTimestamp()).toBe('number')
-      })
-
-      test('继承 updateTimestamp 方法', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        expect(typeof server.updateTimestamp).toBe('function')
-      })
-
-      test('继承 on 方法', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-        const listener = vi.fn()
-
-        server.on(listener)
-
-        expect(server.listeners).toContain(listener)
-      })
-
-      test('继承 listeners 属性', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        expect(Array.isArray(server.listeners)).toBe(true)
-      })
-    })
-
-    describe('IDevtoolServer 接口实现', () => {
-      test('实现 send 方法', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        expect(typeof server.send).toBe('function')
-      })
-
-      test('实现 close 方法', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        expect(typeof server.close).toBe('function')
-      })
-
-      test('实现 open 方法', async () => {
-        const { DevtoolServer } = await import('./index')
-
-        const server = new DevtoolServer({ port: 5271 })
-
-        expect(typeof server.open).toBe('function')
-      })
+    client.send({ id: 5, method: 'Test.applicationError' })
+    expect(await client.next((message) => message.id === 5)).toMatchObject({
+      id: 5,
+      error: { code: CDP_ERROR_CODES.SERVER_ERROR, message: 'request body unavailable' }
     })
   })
 
-  describe('DevtoolServerInitOptions 接口', () => {
-    test('port 是必需的', async () => {
-      const { DevtoolServer } = await import('./index')
+  test('survives malformed JSON and continues serving commands', async () => {
+    const { target } = await createServer()
+    const client = await connect(target.webSocketDebuggerUrl)
+    client.sendRaw('{ definitely not json')
 
-      // 这个测试主要验证类型，运行时只需确保可以创建实例
-      const server = new DevtoolServer({ port: 5271 })
-      expect(server).toBeDefined()
+    expect(await client.next((message) => message.id === null)).toMatchObject({
+      error: { code: CDP_ERROR_CODES.INVALID_REQUEST }
     })
 
-    test('autoOpenDevtool 是可选的', async () => {
-      const { DevtoolServer } = await import('./index')
-
-      const server1 = new DevtoolServer({ port: 5271 })
-      const server2 = new DevtoolServer({ port: 5272, autoOpenDevtool: true })
-      const server3 = new DevtoolServer({ port: 5273, autoOpenDevtool: false })
-
-      expect(server1).toBeDefined()
-      expect(server2).toBeDefined()
-      expect(server3).toBeDefined()
-    })
-
-    test('onConnect 是可选的', async () => {
-      const { DevtoolServer } = await import('./index')
-
-      const server = new DevtoolServer({ port: 5271, onConnect: () => {} })
-      expect(server).toBeDefined()
-    })
-
-    test('onClose 是可选的', async () => {
-      const { DevtoolServer } = await import('./index')
-
-      const server = new DevtoolServer({ port: 5271, onClose: () => {} })
-      expect(server).toBeDefined()
-    })
+    client.send({ id: 9, method: 'Runtime.enable' })
+    expect(await client.next((message) => message.id === 9)).toEqual({ id: 9, result: {} })
   })
 
-  describe('模块导出', () => {
-    test('导出 DevtoolServer 类', async () => {
-      const module = await import('./index')
-      expect(module.DevtoolServer).toBeDefined()
-    })
+  test('bounds no-client history and replays it after enable on reconnect', async () => {
+    const { server, target } = await createServer()
+    for (let index = 0; index < MAX_BUFFERED_EVENTS + 50; index += 1) {
+      await server.send({
+        method: 'Network.requestWillBeSent',
+        params: { requestId: `request-${index}` }
+      })
+    }
+    expect(server.bufferedEventCount).toBe(MAX_BUFFERED_EVENTS)
+    expect(server.bufferedEventBytes).toBeLessThanOrEqual(MAX_BUFFERED_EVENT_BYTES)
+    expect(server.clientCount).toBe(0)
 
-    test('重新导出 type.ts 中的类型', async () => {
-      const module = await import('./index')
-      // BaseDevtoolServer 应该通过 export * from './type' 导出
-      expect(module.BaseDevtoolServer).toBeDefined()
+    const first = await connect(target.webSocketDebuggerUrl)
+    first.send({ id: 1, method: 'Network.enable' })
+    expect(await first.next((message) => message.id === 1)).toEqual({ id: 1, result: {} })
+    expect(await first.next((message) => message.params?.requestId === 'request-50')).toMatchObject(
+      {
+        method: 'Network.requestWillBeSent'
+      }
+    )
+    await first.close()
+    clients.delete(first)
+
+    await server.send({
+      method: 'Network.loadingFinished',
+      params: { requestId: 'after-refresh' }
     })
+    const refreshed = await connect(target.webSocketDebuggerUrl)
+    refreshed.send({ id: 'enable-again', method: 'Network.enable' })
+    expect(await refreshed.next((message) => message.id === 'enable-again')).toEqual({
+      id: 'enable-again',
+      result: {}
+    })
+    expect(
+      await refreshed.next((message) => message.params?.requestId === 'after-refresh')
+    ).toMatchObject({ method: 'Network.loadingFinished' })
+  })
+
+  test('close rejects an explicit pending client waiter, clears history and releases the port', async () => {
+    const { server, target } = await createServer()
+    await server.send({ method: 'Network.loadingFinished', params: { requestId: 'buffered' } })
+    const pending = server.waitForClient()
+    const discoveryUrl = target.discoveryUrl
+
+    await server.close()
+    await expect(pending).rejects.toBeInstanceOf(DevtoolServerClosedError)
+    expect(server.bufferedEventCount).toBe(0)
+    await expect(fetch(discoveryUrl)).rejects.toThrow()
   })
 })

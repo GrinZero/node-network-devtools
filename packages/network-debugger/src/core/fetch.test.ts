@@ -1,769 +1,282 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
-import { RequestDetail } from '../common'
-import { proxyFetch, fetchProxyFactory } from './fetch'
+import { deserialize, serialize } from 'node:v8'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import type { MainProcess } from './fork'
+import { fetchProxyFactory, proxyFetch, SseParser } from './fetch'
 import * as cellModule from './hooks/cell'
 
-// Mock setCurrentCell
+const cellState = vi.hoisted(() => ({ current: null as unknown }))
+
 vi.mock('./hooks/cell', () => ({
-  setCurrentCell: vi.fn(),
-  getCurrentCell: vi.fn()
+  setCurrentCell: vi.fn((cell: unknown) => {
+    cellState.current = cell
+  }),
+  getCurrentCell: vi.fn(() => cellState.current)
 }))
 
-// 创建 mock MainProcess
-function createMockMainProcess() {
-  const mockSendRequest = vi.fn()
-  const mockMainProcess = {
-    sendRequest: mockSendRequest.mockReturnThis()
-  }
-  return { mockMainProcess, mockSendRequest }
+interface JournalEntry {
+  transport: 'request' | 'event'
+  type: string
+  data: any
 }
 
-// 创建 mock Response
-function createMockResponse(
-  options: {
-    status?: number
-    headers?: Record<string, string>
-    body?: string | Buffer
-  } = {}
-) {
-  const { status = 200, headers = {}, body = '' } = options
-  const mockHeaders = new Headers(headers)
-
-  const arrayBuffer = typeof body === 'string' ? new TextEncoder().encode(body).buffer : body.buffer
-
-  return {
-    status,
-    headers: mockHeaders,
-    clone: vi.fn().mockReturnValue({
-      arrayBuffer: vi.fn().mockResolvedValue(arrayBuffer)
-    })
-  } as unknown as Response
+function snapshot<T>(value: T): T {
+  return deserialize(serialize(value)) as T
 }
 
-describe('core/fetch.ts', () => {
-  let originalFetch: typeof globalThis.fetch | undefined
+function createMainProcess() {
+  const journal: JournalEntry[] = []
+  const mainProcess: Record<string, any> = {}
+  mainProcess.sendRequest = vi.fn((type: string, data: unknown) => {
+    journal.push({ transport: 'request', type, data: snapshot(data) })
+    return mainProcess
+  })
+  mainProcess.send = vi.fn(async (event: { type: string; data: unknown }) => {
+    journal.push({ transport: 'event', type: event.type, data: snapshot(event.data) })
+  })
+  return { journal, mainProcess: mainProcess as MainProcess }
+}
+
+function fetchMock(response: Response): typeof fetch {
+  return vi.fn().mockResolvedValue(response) as unknown as typeof fetch
+}
+
+function streamResponse(chunks: string[]): Response {
+  const encoder = new TextEncoder()
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk))
+      controller.close()
+    }
+  })
+  return new Response(body, {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream; charset=utf-8' }
+  })
+}
+
+async function waitFor(journal: JournalEntry[], type: string): Promise<JournalEntry> {
+  await vi.waitFor(() => expect(journal.some((entry) => entry.type === type)).toBe(true))
+  return journal.find((entry) => entry.type === type)!
+}
+
+describe('fetch capture', () => {
+  let savedFetch: typeof globalThis.fetch | undefined
 
   beforeEach(() => {
     vi.clearAllMocks()
-    originalFetch = globalThis.fetch
+    cellState.current = null
+    savedFetch = globalThis.fetch
   })
 
   afterEach(() => {
-    // 恢复原始 fetch
-    if (originalFetch !== undefined) {
-      globalThis.fetch = originalFetch
-    }
+    if (savedFetch) globalThis.fetch = savedFetch
+    else Reflect.deleteProperty(globalThis, 'fetch')
   })
 
-  describe('proxyFetch 函数', () => {
-    test('当 globalThis.fetch 不存在时，直接返回 undefined', () => {
-      // 临时删除 fetch
-      const savedFetch = globalThis.fetch
-      // @ts-expect-error - 测试 fetch 不存在的情况
-      delete globalThis.fetch
+  test('installs and unsets the global proxy without overwriting a later owner', () => {
+    const original = vi.fn() as unknown as typeof fetch
+    globalThis.fetch = original
+    const { mainProcess } = createMainProcess()
 
-      const { mockMainProcess } = createMockMainProcess()
-      const result = proxyFetch(mockMainProcess as never)
+    const unset = proxyFetch(mainProcess)!
+    expect(globalThis.fetch).not.toBe(original)
+    unset()
+    expect(globalThis.fetch).toBe(original)
 
-      expect(result).toBeUndefined()
-
-      // 恢复
-      globalThis.fetch = savedFetch
-    })
-
-    test('当 globalThis.fetch 存在时，替换为代理函数', () => {
-      const mockFetch = vi.fn()
-      globalThis.fetch = mockFetch
-
-      const { mockMainProcess } = createMockMainProcess()
-      const unset = proxyFetch(mockMainProcess as never)
-
-      expect(globalThis.fetch).not.toBe(mockFetch)
-      expect(typeof unset).toBe('function')
-    })
-
-    test('调用返回的 unset 函数后恢复原始 fetch', () => {
-      const mockFetch = vi.fn()
-      globalThis.fetch = mockFetch
-
-      const { mockMainProcess } = createMockMainProcess()
-      const unset = proxyFetch(mockMainProcess as never)
-
-      expect(globalThis.fetch).not.toBe(mockFetch)
-
-      // 调用 unset
-      unset!()
-
-      expect(globalThis.fetch).toBe(mockFetch)
-    })
+    const unsetAgain = proxyFetch(mainProcess)!
+    const replacement = vi.fn() as unknown as typeof fetch
+    globalThis.fetch = replacement
+    unsetAgain()
+    expect(globalThis.fetch).toBe(replacement)
   })
 
-  describe('fetchProxyFactory 函数', () => {
-    describe('请求 URL 处理', () => {
-      test('处理字符串 URL', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
+  test('does nothing when the runtime has no global fetch', () => {
+    Reflect.deleteProperty(globalThis, 'fetch')
+    const { mainProcess } = createMainProcess()
+    expect(proxyFetch(mainProcess)).toBeUndefined()
+  })
 
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        // 验证 sendRequest 被调用，且 URL 正确
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            url: 'https://example.com/api'
-          })
-        )
-      })
-
-      test('处理 URL 对象', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        const url = new URL('https://example.com/api')
-        await proxyFn(url)
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            url: 'https://example.com/api'
-          })
-        )
-      })
-
-      test('处理 Request 对象（URL 不会被提取）', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        // 注意：Request 对象的 URL 不会被提取到 requestDetail.url
-        // 因为代码只检查 string 和 URL 类型
-        const request = new Request('https://example.com/api')
-        await proxyFn(request)
-
-        // URL 应该是 undefined，因为 Request 类型不被处理
-        // RequestDetail 初始化时 url 属性未定义
-        const initRequestCall = mockSendRequest.mock.calls.find((call) => call[0] === 'initRequest')
-        expect(initRequestCall).toBeDefined()
-        const requestDetail = initRequestCall![1] as RequestDetail
-        expect(requestDetail.url).toBeUndefined()
-      })
+  test('captures a Request URL, merged headers, body, and a seconds timestamp', async () => {
+    const response = new Response(null, { status: 204 })
+    const original = fetchMock(response)
+    const { journal, mainProcess } = createMainProcess()
+    const request = new Request('http://127.0.0.1:43871/actual?value=1', {
+      method: 'PUT',
+      headers: { 'X-From-Request': 'base' }
     })
+    const before = Date.now() / 1000
 
-    describe('请求方法处理', () => {
-      test('默认方法为 GET', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            method: 'GET'
-          })
-        )
-      })
-
-      test('使用 options 中指定的方法', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api', { method: 'POST' })
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            method: 'POST'
-          })
-        )
-      })
+    await fetchProxyFactory(original, mainProcess)(request, {
+      method: 'PATCH',
+      headers: { 'X-From-Options': 'override' },
+      body: 'payload'
     })
-
-    describe('请求头处理', () => {
-      test('处理 Headers 对象', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        const headers = new Headers({
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer token'
-        })
-        await proxyFn('https://example.com/api', { headers })
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            requestHeaders: {
-              'content-type': 'application/json',
-              authorization: 'Bearer token'
-            }
-          })
-        )
-      })
-
-      test('处理普通对象头部', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        const headers = {
-          'Content-Type': 'application/json',
-          'X-Custom-Header': 'custom-value'
-        }
-        await proxyFn('https://example.com/api', { headers })
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            requestHeaders: headers
-          })
-        )
-      })
-
-      test('没有头部时使用空对象', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            requestHeaders: {}
-          })
-        )
-      })
-    })
-
-    describe('请求体处理', () => {
-      test('记录请求体数据', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        const body = JSON.stringify({ key: 'value' })
-        await proxyFn('https://example.com/api', { method: 'POST', body })
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'initRequest',
-          expect.objectContaining({
-            requestData: body
-          })
-        )
-      })
-    })
-
-    describe('setCurrentCell 调用', () => {
-      test('请求开始时设置 cell', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        expect(cellModule.setCurrentCell).toHaveBeenCalledWith(
-          expect.objectContaining({
-            request: expect.any(RequestDetail),
-            pipes: [],
-            isAborted: false
-          })
-        )
-      })
-
-      test('请求完成后清除 cell', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        // 最后一次调用应该是 null
-        const calls = vi.mocked(cellModule.setCurrentCell).mock.calls
-        expect(calls[calls.length - 1][0]).toBeNull()
-      })
-    })
-
-    describe('MainProcess 消息发送', () => {
-      test('发送 initRequest 和 registerRequest', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        expect(mockSendRequest).toHaveBeenCalledWith('initRequest', expect.any(RequestDetail))
-        expect(mockSendRequest).toHaveBeenCalledWith('registerRequest', expect.any(RequestDetail))
-      })
-    })
-
-    describe('成功响应处理', () => {
-      test('记录响应状态码', async () => {
-        const mockResponse = createMockResponse({ status: 201 })
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        // 等待异步操作完成
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'updateRequest',
-          expect.objectContaining({
-            responseStatusCode: 201
-          })
-        )
-      })
-
-      test('记录响应头', async () => {
-        const mockResponse = createMockResponse({
-          headers: { 'Content-Type': 'application/json' }
-        })
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'updateRequest',
-          expect.objectContaining({
-            responseHeaders: { 'content-type': 'application/json' }
-          })
-        )
-      })
-
-      test('记录响应体数据', async () => {
-        const responseBody = 'Hello, World!'
-        const mockResponse = createMockResponse({ body: responseBody })
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'updateRequest',
-          expect.objectContaining({
-            responseData: expect.any(Buffer)
-          })
-        )
-      })
-
-      test('记录响应数据长度', async () => {
-        const responseBody = 'Hello, World!'
-        const mockResponse = createMockResponse({ body: responseBody })
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'updateRequest',
-          expect.objectContaining({
-            responseInfo: expect.objectContaining({
-              dataLength: responseBody.length,
-              encodedDataLength: responseBody.length
-            })
-          })
-        )
-      })
-
-      test('发送 updateRequest 和 endRequest', async () => {
-        const mockResponse = createMockResponse()
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        expect(mockSendRequest).toHaveBeenCalledWith('updateRequest', expect.any(RequestDetail))
-        expect(mockSendRequest).toHaveBeenCalledWith('endRequest', expect.any(RequestDetail))
-      })
-
-      test('返回原始 Response 对象', async () => {
-        const mockResponse = createMockResponse()
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        const result = await proxyFn('https://example.com/api')
-
-        expect(result).toBe(mockResponse)
-      })
-
-      test('响应状态码为 0 时正确处理', async () => {
-        const mockResponse = createMockResponse({ status: 0 })
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'updateRequest',
-          expect.objectContaining({
-            responseStatusCode: 0
-          })
-        )
-      })
-    })
-
-    describe('错误响应处理', () => {
-      test('请求失败时记录状态码为 0', async () => {
-        const error = new Error('Network error')
-        const mockFetch = vi.fn().mockRejectedValue(error)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-
-        await expect(proxyFn('https://example.com/api')).rejects.toThrow('Network error')
-
-        expect(mockSendRequest).toHaveBeenCalledWith(
-          'updateRequest',
-          expect.objectContaining({
-            responseStatusCode: 0
-          })
-        )
-      })
-
-      test('请求失败时发送 updateRequest 和 endRequest', async () => {
-        const error = new Error('Network error')
-        const mockFetch = vi.fn().mockRejectedValue(error)
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-
-        await expect(proxyFn('https://example.com/api')).rejects.toThrow()
-
-        expect(mockSendRequest).toHaveBeenCalledWith('updateRequest', expect.any(RequestDetail))
-        expect(mockSendRequest).toHaveBeenCalledWith('endRequest', expect.any(RequestDetail))
-      })
-
-      test('请求失败时重新抛出错误', async () => {
-        const error = new Error('Custom error message')
-        const mockFetch = vi.fn().mockRejectedValue(error)
-        const { mockMainProcess } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-
-        await expect(proxyFn('https://example.com/api')).rejects.toThrow('Custom error message')
-      })
-
-      test('请求失败后清除 cell', async () => {
-        const error = new Error('Network error')
-        const mockFetch = vi.fn().mockRejectedValue(error)
-        const { mockMainProcess } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-
-        await expect(proxyFn('https://example.com/api')).rejects.toThrow()
-
-        // 最后一次调用应该是 null
-        const calls = vi.mocked(cellModule.setCurrentCell).mock.calls
-        expect(calls[calls.length - 1][0]).toBeNull()
-      })
-    })
-
-    describe('时间戳记录', () => {
-      test('记录请求开始时间', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const beforeTime = Date.now()
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-        const afterTime = Date.now()
-
-        const initRequestCall = mockSendRequest.mock.calls.find((call) => call[0] === 'initRequest')
-        expect(initRequestCall).toBeDefined()
-        const requestDetail = initRequestCall![1] as RequestDetail
-        expect(requestDetail.requestStartTime).toBeGreaterThanOrEqual(beforeTime)
-        expect(requestDetail.requestStartTime).toBeLessThanOrEqual(afterTime)
-      })
-
-      test('记录请求结束时间', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess, mockSendRequest } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        await new Promise((resolve) => setTimeout(resolve, 10))
-
-        const updateRequestCall = mockSendRequest.mock.calls.find(
-          (call) => call[0] === 'updateRequest'
-        )
-        expect(updateRequestCall).toBeDefined()
-        const requestDetail = updateRequestCall![1] as RequestDetail
-        expect(requestDetail.requestEndTime).toBeDefined()
-        expect(requestDetail.requestEndTime).toBeGreaterThan(0)
-      })
-    })
-
-    describe('原始 fetch 调用', () => {
-      test('正确传递参数给原始 fetch', async () => {
-        const mockFetch = vi.fn().mockResolvedValue(createMockResponse())
-        const { mockMainProcess } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        const options: RequestInit = {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: 'value' })
-        }
-        await proxyFn('https://example.com/api', options)
-
-        expect(mockFetch).toHaveBeenCalledWith('https://example.com/api', options)
-      })
-    })
-
-    describe('SSE (Server-Sent Events) 处理', () => {
-      // Helper to create a mock SSE response
-      function createMockSSEResponse(events: string[], options: { delay?: number } = {}) {
-        const { delay = 0 } = options
-        const mockHeaders = new Headers({
-          'content-type': 'text/event-stream'
-        })
-
-        // Create a mock ReadableStream
-        let readerIndex = 0
-        const encoder = new TextEncoder()
-        const chunks = events.map((event) => encoder.encode(event))
-
-        const mockReader = {
-          read: vi.fn().mockImplementation(async () => {
-            if (delay > 0) {
-              await new Promise((resolve) => setTimeout(resolve, delay))
-            }
-            if (readerIndex >= chunks.length) {
-              return { done: true, value: undefined }
-            }
-            const value = chunks[readerIndex]
-            readerIndex++
-            return { done: false, value }
-          })
-        }
-
-        const mockBody = {
-          getReader: vi.fn().mockReturnValue(mockReader)
-        }
-
-        return {
-          status: 200,
-          headers: mockHeaders,
-          body: mockBody,
-          clone: vi.fn().mockReturnValue({
-            body: mockBody,
-            arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(0))
-          })
-        } as unknown as Response
+    const after = Date.now() / 1000
+
+    const detail = journal.find((entry) => entry.type === 'initRequest')!.data
+    expect(detail).toMatchObject({
+      url: 'http://127.0.0.1:43871/actual?value=1',
+      method: 'PATCH',
+      requestData: 'payload',
+      requestHeaders: {
+        'x-from-request': 'base',
+        'x-from-options': 'override'
       }
-
-      test('正确识别 SSE 响应 (text/event-stream)', async () => {
-        const mockResponse = createMockSSEResponse(['data: hello\n\n'])
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const { mockMainProcess } = createMockMainProcess()
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        const result = await proxyFn('https://example.com/sse')
-
-        // SSE 响应应该直接返回，不等待流结束
-        expect(result).toBe(mockResponse)
-      })
-
-      test('解析简单的 SSE 事件', async () => {
-        const mockResponse = createMockSSEResponse(['data: hello world\n\n'])
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const mockSend = vi.fn()
-        const mockSendRequest = vi.fn().mockReturnThis()
-        const mockMainProcess = {
-          sendRequest: mockSendRequest,
-          send: mockSend
-        }
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/sse')
-
-        // 等待流处理完成
-        await new Promise((resolve) => setTimeout(resolve, 50))
-
-        expect(mockSend).toHaveBeenCalledWith({
-          type: 'eventSourceMessage',
-          data: {
-            requestId: expect.any(String),
-            eventName: 'message',
-            eventId: '',
-            data: 'hello world'
-          }
-        })
-      })
-
-      test('解析带有 event 类型的 SSE 事件', async () => {
-        const mockResponse = createMockSSEResponse(['event: custom\ndata: test data\n\n'])
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const mockSend = vi.fn()
-        const mockSendRequest = vi.fn().mockReturnThis()
-        const mockMainProcess = {
-          sendRequest: mockSendRequest,
-          send: mockSend
-        }
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/sse')
-
-        await new Promise((resolve) => setTimeout(resolve, 50))
-
-        expect(mockSend).toHaveBeenCalledWith({
-          type: 'eventSourceMessage',
-          data: {
-            requestId: expect.any(String),
-            eventName: 'custom',
-            eventId: '',
-            data: 'test data'
-          }
-        })
-      })
-
-      test('解析带有 id 的 SSE 事件', async () => {
-        const mockResponse = createMockSSEResponse(['id: 123\ndata: with id\n\n'])
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const mockSend = vi.fn()
-        const mockSendRequest = vi.fn().mockReturnThis()
-        const mockMainProcess = {
-          sendRequest: mockSendRequest,
-          send: mockSend
-        }
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/sse')
-
-        await new Promise((resolve) => setTimeout(resolve, 50))
-
-        expect(mockSend).toHaveBeenCalledWith({
-          type: 'eventSourceMessage',
-          data: {
-            requestId: expect.any(String),
-            eventName: 'message',
-            eventId: '123',
-            data: 'with id'
-          }
-        })
-      })
-
-      test('处理多行 data', async () => {
-        const mockResponse = createMockSSEResponse(['data: line1\ndata: line2\n\n'])
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const mockSend = vi.fn()
-        const mockSendRequest = vi.fn().mockReturnThis()
-        const mockMainProcess = {
-          sendRequest: mockSendRequest,
-          send: mockSend
-        }
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/sse')
-
-        await new Promise((resolve) => setTimeout(resolve, 50))
-
-        expect(mockSend).toHaveBeenCalledWith({
-          type: 'eventSourceMessage',
-          data: {
-            requestId: expect.any(String),
-            eventName: 'message',
-            eventId: '',
-            data: 'line1\nline2'
-          }
-        })
-      })
-
-      test('处理多个连续的 SSE 事件', async () => {
-        const mockResponse = createMockSSEResponse([
-          'data: first\n\n',
-          'data: second\n\n',
-          'data: third\n\n'
-        ])
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const mockSend = vi.fn()
-        const mockSendRequest = vi.fn().mockReturnThis()
-        const mockMainProcess = {
-          sendRequest: mockSendRequest,
-          send: mockSend
-        }
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/sse')
-
-        await new Promise((resolve) => setTimeout(resolve, 100))
-
-        const eventSourceCalls = mockSend.mock.calls.filter(
-          (call) => call[0]?.type === 'eventSourceMessage'
-        )
-        expect(eventSourceCalls.length).toBe(3)
-        expect(eventSourceCalls[0][0].data.data).toBe('first')
-        expect(eventSourceCalls[1][0].data.data).toBe('second')
-        expect(eventSourceCalls[2][0].data.data).toBe('third')
-      })
-
-      test('SSE 流结束后发送 endRequest', async () => {
-        const mockResponse = createMockSSEResponse(['data: test\n\n'])
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const mockSend = vi.fn()
-        const mockSendRequest = vi.fn().mockReturnThis()
-        const mockMainProcess = {
-          sendRequest: mockSendRequest,
-          send: mockSend
-        }
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/sse')
-
-        await new Promise((resolve) => setTimeout(resolve, 50))
-
-        expect(mockSendRequest).toHaveBeenCalledWith('endRequest', expect.any(RequestDetail))
-      })
-
-      test('非 SSE 响应不触发 eventSourceMessage', async () => {
-        const mockResponse = createMockResponse({
-          headers: { 'content-type': 'application/json' },
-          body: '{"key": "value"}'
-        })
-        const mockFetch = vi.fn().mockResolvedValue(mockResponse)
-        const mockSend = vi.fn()
-        const mockSendRequest = vi.fn().mockReturnThis()
-        const mockMainProcess = {
-          sendRequest: mockSendRequest,
-          send: mockSend
-        }
-
-        const proxyFn = fetchProxyFactory(mockFetch, mockMainProcess as never)
-        await proxyFn('https://example.com/api')
-
-        await new Promise((resolve) => setTimeout(resolve, 50))
-
-        const eventSourceCalls = mockSend.mock.calls.filter(
-          (call) => call[0]?.type === 'eventSourceMessage'
-        )
-        expect(eventSourceCalls.length).toBe(0)
-      })
     })
+    expect(detail.requestStartTime).toBeGreaterThanOrEqual(before)
+    expect(detail.requestStartTime).toBeLessThanOrEqual(after)
+    expect(detail.requestStartTime).toBeLessThan(10_000_000_000)
+    expect(original).toHaveBeenCalledWith(request, expect.objectContaining({ body: 'payload' }))
+  })
+
+  test('emits responseReceived before the terminal body event', async () => {
+    const response = new Response('captured body', {
+      status: 201,
+      statusText: 'Created',
+      headers: { 'content-type': 'text/plain', 'x-result': 'yes' }
+    })
+    const { journal, mainProcess } = createMainProcess()
+
+    const returned = await fetchProxyFactory(
+      fetchMock(response),
+      mainProcess
+    )('https://example.test/resource')
+    const terminal = await waitFor(journal, 'endRequest')
+
+    expect(returned).toBe(response)
+    expect(journal.map(({ type }) => type)).toEqual([
+      'initRequest',
+      'registerRequest',
+      'responseReceived',
+      'endRequest'
+    ])
+    const received = journal.find((entry) => entry.type === 'responseReceived')!.data
+    expect(received).toMatchObject({
+      responseStatusCode: 201,
+      responseStatusText: 'Created',
+      responseHeaders: { 'content-type': 'text/plain', 'x-result': 'yes' }
+    })
+    expect(Buffer.from(terminal.data.responseData).toString()).toBe('captured body')
+    expect(terminal.data.responseInfo).toEqual({ dataLength: 13, encodedDataLength: 13 })
+    expect(terminal.data.requestEndTime).toBeLessThan(10_000_000_000)
+    expect(cellState.current).toBeNull()
+  })
+
+  test('reports a rejected fetch only as requestFailed and rethrows it', async () => {
+    const failure = new Error('connection refused')
+    const original = vi.fn().mockRejectedValue(failure) as unknown as typeof fetch
+    const { journal, mainProcess } = createMainProcess()
+
+    await expect(
+      fetchProxyFactory(original, mainProcess)('http://127.0.0.1:49999/unavailable')
+    ).rejects.toBe(failure)
+
+    expect(journal.map(({ type }) => type)).toEqual([
+      'initRequest',
+      'registerRequest',
+      'requestFailed'
+    ])
+    const failed = journal.at(-1)!.data
+    expect(failed.errorText).toBe('connection refused')
+    expect(failed.request.requestEndTime).toBeLessThan(10_000_000_000)
+    expect(cellState.current).toBeNull()
+  })
+
+  test('reports body-capture failure after headers without a successful terminal event', async () => {
+    const response = {
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/octet-stream' }),
+      clone: () => ({ arrayBuffer: () => Promise.reject(new Error('stream reset')) })
+    } as unknown as Response
+    const { journal, mainProcess } = createMainProcess()
+
+    await fetchProxyFactory(fetchMock(response), mainProcess)('https://example.test/reset')
+    await waitFor(journal, 'requestFailed')
+
+    expect(journal.map(({ type }) => type)).toEqual([
+      'initRequest',
+      'registerRequest',
+      'responseReceived',
+      'requestFailed'
+    ])
+    expect(journal.some(({ type }) => type === 'endRequest')).toBe(false)
+    expect(journal.at(-1)!.data).toMatchObject({ errorText: 'stream reset', canceled: true })
+  })
+
+  test('SseParser handles split CRLF delimiters, multiline data, and persistent ids', () => {
+    const messages: Array<{ eventName: string; eventId: string; data: string }> = []
+    const parser = new SseParser((message) => messages.push(message))
+
+    parser.push('id: 7\r')
+    parser.push('\nevent: update\r\ndata: first\r')
+    parser.push('\ndata: second\r\n\r')
+    parser.push('\n: ignored\r\ndata: tail')
+    parser.finish()
+
+    expect(messages).toEqual([
+      { eventName: 'update', eventId: '7', data: 'first\nsecond' },
+      { eventName: 'message', eventId: '7', data: 'tail' }
+    ])
+  })
+
+  test('SseParser flushes an unterminated final event and ignores events without data', () => {
+    const messages: Array<{ eventName: string; eventId: string; data: string }> = []
+    const parser = new SseParser((message) => messages.push(message))
+
+    parser.push('event: ignored\n\nid: stable\n')
+    parser.finish('data: final')
+
+    expect(messages).toEqual([{ eventName: 'message', eventId: 'stable', data: 'final' }])
+  })
+
+  test('streams SSE messages across chunks before one successful terminal event', async () => {
+    const chunks = [
+      'id: 7\r',
+      '\nevent: update\r\ndata: first\r',
+      '\ndata: second\r\n\r',
+      '\ndata: tail'
+    ]
+    const response = streamResponse(chunks)
+    const { journal, mainProcess } = createMainProcess()
+
+    await fetchProxyFactory(fetchMock(response), mainProcess)('http://127.0.0.1:43777/events')
+    const terminal = await waitFor(journal, 'endRequest')
+
+    expect(journal.map(({ type }) => type)).toEqual([
+      'initRequest',
+      'registerRequest',
+      'eventSourceResponseReceived',
+      'eventSourceMessage',
+      'eventSourceMessage',
+      'endRequest'
+    ])
+    expect(
+      journal
+        .filter(({ type }) => type === 'eventSourceMessage')
+        .map(({ data }) => ({ eventName: data.eventName, eventId: data.eventId, data: data.data }))
+    ).toEqual([
+      { eventName: 'update', eventId: '7', data: 'first\nsecond' },
+      { eventName: 'message', eventId: '7', data: 'tail' }
+    ])
+    expect(Buffer.from(terminal.data.responseData).toString()).toBe(chunks.join(''))
+  })
+
+  test('clears only the async-context cell owned by the completing fetch', async () => {
+    let resolveFirst!: (response: Response) => void
+    const firstFetch = vi.fn(
+      () => new Promise<Response>((resolve) => (resolveFirst = resolve))
+    ) as unknown as typeof fetch
+    const { mainProcess } = createMainProcess()
+    const firstPromise = fetchProxyFactory(firstFetch, mainProcess)('https://example.test/first')
+    const firstCell = cellState.current
+
+    cellState.current = { request: 'newer context' }
+    resolveFirst(new Response('done'))
+    await firstPromise
+
+    expect(cellState.current).toEqual({ request: 'newer context' })
+    expect(vi.mocked(cellModule.setCurrentCell)).not.toHaveBeenCalledWith(null)
+    expect(firstCell).not.toBeNull()
   })
 })

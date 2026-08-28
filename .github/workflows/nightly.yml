@@ -1,0 +1,80 @@
+name: Nightly compatibility
+
+on:
+  schedule:
+    - cron: '17 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-compatibility
+  cancel-in-progress: false
+
+# The reusable gate supplies the complete Ubuntu runtime matrix. These jobs add
+# Windows/macOS across every declared runtime. As of 2026-08-28, Node 18/20 are
+# EOL compatibility lines; 22/24 are LTS and 26 is Current. Evidence:
+# https://github.com/nodejs/Release#release-schedule
+jobs:
+  quality:
+    name: Reusable Ubuntu quality matrix
+    uses: ./.github/workflows/reusable-quality.yml
+    permissions:
+      contents: read
+
+  legacy-os-runtime:
+    name: Legacy / ${{ matrix.os }} / Node ${{ matrix.node }}
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        node: [18.18.0, 20, 22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.quality.outputs.package_artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Run the node:test Legacy controller against the exact tarball
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+          HTTP_PROXY: ''
+          HTTPS_PROXY: ''
+          ALL_PROXY: ''
+          NO_PROXY: 127.0.0.1,localhost
+        run: node --test packages/network-debugger/test/e2e/pack/legacy-runtime.test.mjs
+
+  native-os-runtime:
+    name: Native / ${{ matrix.os }} / Node ${{ matrix.node }}
+    needs: quality
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.quality.outputs.package_artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Run the node:test Native controller against the exact tarball
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+          HTTP_PROXY: ''
+          HTTPS_PROXY: ''
+          ALL_PROXY: ''
+          NO_PROXY: 127.0.0.1,localhost
+        run: node --test packages/network-debugger/test/e2e/pack/native-runtime.test.mjs

@@ -1,7 +1,15 @@
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
-import { __dirname } from '../common'
+
+export interface ScriptDescriptor {
+  url: string
+  scriptLanguage: string
+  embedderName: string
+  scriptId: string
+  sourceMapURL: string
+  hasSourceURL: boolean
+}
 
 // Actually Allowed Values: JavaScript, WebAssembly
 function getScriptLangByFileName(fileName: string) {
@@ -32,6 +40,11 @@ export class ScriptMap {
     this.scriptIdToUrl.set(scriptId, filePath)
   }
 
+  /** Add an alternate lookup key without replacing the canonical file URL. */
+  public addAlias(alias: string, scriptId: string) {
+    this.urlToScriptId.set(alias, scriptId)
+  }
+
   public getUrlByScriptId(scriptId: string) {
     return this.scriptIdToUrl.get(scriptId)
   }
@@ -44,14 +57,18 @@ export class ScriptMap {
 export class ResourceService {
   private scriptMap: ScriptMap
   private scriptIdCounter: number
+  private scripts: Map<string, ScriptDescriptor>
 
   constructor() {
     this.scriptMap = new ScriptMap()
     this.scriptIdCounter = 0
+    this.scripts = new Map()
   }
 
   public getScriptIdByUrl(url: string) {
-    return this.scriptMap.getScriptIdByUrl(url)
+    const existing = this.scriptMap.getScriptIdByUrl(url)
+    if (existing) return existing
+    return this.registerScript(url)?.scriptId
   }
 
   public getUrlByScriptId(scriptId: string) {
@@ -82,86 +99,67 @@ export class ResourceService {
    * @returns string
    */
   readLastLine(filePath: string, stat: fs.Stats, totalLines = 1) {
-    const fileSize = stat.size
-    const chunkSize = Math.min(1024, fileSize)
-    let startPos = fileSize - chunkSize
-    let buffer = Buffer.alloc(chunkSize)
-    let lines: string[] = []
-
+    if (totalLines <= 0 || stat.size === 0) return ''
+    // Source-map directives are short and live at EOF. A bounded tail read
+    // avoids the old zero-progress loop for files without a trailing newline.
+    const length = Math.min(stat.size, 64 * 1024)
+    const start = stat.size - length
+    const buffer = Buffer.alloc(length)
     const fd = fs.openSync(filePath, 'r')
-
-    while (lines.length < totalLines && startPos >= 0) {
-      fs.readSync(fd, buffer, 0, chunkSize, startPos)
-      const chunk = buffer.toString('utf8')
-      lines = chunk.split('\n').concat(lines)
-      startPos -= chunkSize
-      if (startPos < 0) {
-        startPos = 0
-        buffer = Buffer.alloc(fileSize - startPos)
-      }
+    try {
+      fs.readSync(fd, buffer, 0, length, start)
+    } finally {
+      fs.closeSync(fd)
     }
-
-    fs.closeSync(fd)
-
-    // Return the last `totalLines` lines
-    return lines.slice(-totalLines).join('\n')
-  }
-
-  private traverseDirToMap(directoryPath: string, ignoreList: string[] = ['node_modules']) {
-    const scriptList = []
-    const stack = [directoryPath]
-    let scriptId = this.scriptIdCounter
-
-    while (stack.length > 0) {
-      const currentPath = stack.pop()!
-      const items = fs.readdirSync(currentPath)
-      for (const item of items) {
-        if (ignoreList.includes(item)) {
-          continue
-        }
-
-        const fullPath = path.join(currentPath, item)
-        const stats = fs.statSync(fullPath)
-        if (stats.isDirectory()) {
-          stack.push(fullPath)
-        } else {
-          const resolvedPath = path.resolve(fullPath)
-          const fileUrl = pathToFileURL(resolvedPath)
-          const scriptIdStr = `${++scriptId}`
-          let sourceMapURL = ''
-          if (/\.(js|ts)$/.test(resolvedPath)) {
-            const lastChunkCode = this.readLastLine(fullPath, stats, 2)
-            const sourceMapFilePathMatch = lastChunkCode.match(/sourceMappingURL=(.+)$/m)?.[1] ?? ''
-            sourceMapURL = sourceMapFilePathMatch
-              ? sourceMapFilePathMatch.startsWith('data:')
-                ? // inline sourcemap
-                  sourceMapFilePathMatch
-                : // file path
-                  pathToFileURL(path.join(currentPath, sourceMapFilePathMatch)).href
-              : ''
-          }
-          const url = fileUrl.href
-          const scriptLanguage = getScriptLangByFileName(url)
-          scriptList.push({
-            url,
-            scriptLanguage,
-            embedderName: fileUrl.href,
-            scriptId: scriptIdStr,
-            sourceMapURL: sourceMapURL,
-            hasSourceURL: Boolean(sourceMapURL)
-          })
-          this.scriptMap.addMapping(url, scriptIdStr)
-        }
-      }
-    }
-    this.scriptIdCounter += scriptList.length
-    return scriptList
+    return buffer.toString('utf8').split(/\r?\n/).slice(-totalLines).join('\n')
   }
 
   public getLocalScriptList() {
-    const projectScripts = this.traverseDirToMap(process.cwd())
-    const coreScripts = this.traverseDirToMap(__dirname)
+    return [...this.scripts.values()]
+  }
 
-    return [...projectScripts, ...coreScripts]
+  private registerScript(input: string): ScriptDescriptor | undefined {
+    let filePath: string
+    try {
+      filePath = input.startsWith('file:') ? fileURLToPath(input) : path.resolve(input)
+    } catch {
+      return undefined
+    }
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(filePath)
+    } catch {
+      return undefined
+    }
+    if (!stat || typeof stat.isFile !== 'function' || !stat.isFile()) return undefined
+
+    const url = pathToFileURL(filePath).href
+    const known = this.scriptMap.getScriptIdByUrl(url)
+    if (known) return this.scripts.get(known)
+
+    let sourceMapURL = ''
+    if (/\.(?:[cm]?js|ts)$/i.test(filePath)) {
+      const tail = this.readLastLine(filePath, stat, 2)
+      const sourceMap = tail.match(/sourceMappingURL=(.+)$/m)?.[1]?.trim()
+      if (sourceMap) {
+        sourceMapURL = sourceMap.startsWith('data:')
+          ? sourceMap
+          : pathToFileURL(path.resolve(path.dirname(filePath), sourceMap)).href
+      }
+    }
+
+    const scriptId = `${++this.scriptIdCounter}`
+    const descriptor: ScriptDescriptor = {
+      url,
+      scriptLanguage: getScriptLangByFileName(url),
+      embedderName: url,
+      scriptId,
+      sourceMapURL,
+      hasSourceURL: Boolean(sourceMapURL)
+    }
+    this.scriptMap.addMapping(url, scriptId)
+    if (input !== url) this.scriptMap.addAlias(input, scriptId)
+    this.scripts.set(scriptId, descriptor)
+    return descriptor
   }
 }

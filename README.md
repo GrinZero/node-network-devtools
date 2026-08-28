@@ -1,98 +1,109 @@
-<div align="center">
-  <h1 align="center">
-    <img src="https://github.com/GrinZero/extreme/assets/70185413/415b35ca-6e28-4486-b480-459bda8f1faa" width="100" />
-    <br>Node Network Devtools</h1>
+# Node Network Devtools
 
- <h3 align="center">🔮  Use chrome network devtool to debugger nodejs</h3>
- <h3 align="center">🦎  Similar web crawler experience to browsers </h3>
- <h3 align="center">⚙️  Powered by CDP</h3>
-  <p align="center">
-  <p align="center">
-     <img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJs"/>
-    <img src="https://img.shields.io/badge/Google%20Chrome-4285F4?style=for-the-badge&logo=GoogleChrome&logoColor=white" alt="Chrome"/>
-   <img src="https://img.shields.io/badge/TypeScript-3178C6.svg?style=for-the-badge&logo=TypeScript&logoColor=white" alt="TypeScript" />
- </p>
- </p>
-
-</div>
-
----
+Inspect outbound Node.js traffic in the standard Chrome DevTools Network panel.
 
 English | [简体中文](README-zh_CN.md)
 
-[![node-network-devtools](https://snyk.io/advisor/npm-package/node-network-devtools/badge.svg)](https://snyk.io/advisor/npm-package/node-network-devtools)
-![npm downloads](https://img.shields.io/npm/dm/node-network-devtools?label=npm%20downloads)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/GrinZero/node-network-devtools)
+[![npm downloads](https://img.shields.io/npm/dm/node-network-devtools?label=npm%20downloads)](https://www.npmjs.com/package/node-network-devtools)
 
-## 📖 Introduction
+Version 2 has two mutually exclusive backends:
 
-As you can see, the node program opened with the `--inspect` option does not support network tags because it does not proxy user requests.
-Node network devtools is designed to address this issue by allowing you to debug requests made by nodejs using the network tab of Chrome devtools, making the debugging process equivalent to a web crawler experience in the browser.
+- **Native** connects to Node's experimental Network Inspector without patching
+  application network APIs.
+- **Legacy** captures HTTP/HTTPS, Fetch, opted-in Undici, WebSocket frames, and
+  SSE through a project-owned standard CDP target.
 
-Node v22.6.0 experimentally supports network debugging. This library supports use before node v22.6.0, but the specific supported versions are unknown.
+The runtime owns a target, not a Chrome process. Browser opening is explicit,
+ports default to OS assignment, and Legacy application transport uses isolated
+child-process IPC instead of the old 5270 WebSocket/lock-file design.
 
-## 🎮 Features
-
-- [x] HTTP/HTTPS
-  - [x] req/res headers
-  - [x] payload
-  - [x] json str response body
-  - [x] binary response body
-  - [x] stack follow
-    - [x] show stack
-    - [x] click to jump
-      - [x] base
-      - [x] Sourcemap
-- [x] WebSocket
-  - [x] messages
-  - [x] payload
-  - [x] headers
-- [ ] Compatibility
-  - [x] commonjs
-  - [x] esmodule
-- [ ] Undici
-  - [ ] undici.request
-  - [x] undici.fetch
-- [ ] Complete unit testing of oneself
-
-## 👀 Preview
-
-![img](https://github.com/GrinZero/node-network-devtools/assets/70185413/5338d8f2-bb54-46fd-b243-a7a5b4af3031)
-
-## 📦 Quick Start
-
-### 1. Install
+## Quick start
 
 ```bash
-# npm
-npm install node-network-devtools -D
-# or pnpm
-pnpm add node-network-devtools -D
-# or yarn
-yarn add node-network-devtools -D
+npm install --save-dev node-network-devtools
+
+# Zero-code startup
+npx nnd dev --open src/app.js
+
+# Diagnose the actual runtime and adapter capabilities
+npx nnd doctor --json
 ```
 
-### 2. Usage
+Library usage:
 
-Just add the following code to the entry file of your project.
-
-```typescript
+```ts
 import { register } from 'node-network-devtools'
 
-process.env.NODE_ENV === 'development' && register()
+const registration = register({
+  mode: 'auto',
+  requiredCapabilities: ['responseBody'],
+  inspector: { host: '127.0.0.1', port: 0 },
+  devtools: { open: false }
+})
+
+const ready = await registration.ready
+console.log(ready.mode, ready.target, ready.capabilities, ready.fallbackReason)
+
+await registration.openDevtools()
+await registration.dispose()
 ```
 
-To stop debugging network requests and eliminate side effects, just use the return value of the `register` method for cleanup.
+The handle remains callable for v1 compatibility: `const unregister =
+register(); unregister()`.
 
-```typescript
-import { register } from 'node-network-devtools'
+## Capability summary
 
-const unregister = register()
-unregister()
+| Capability                     | Native                  | Legacy |
+| ------------------------------ | ----------------------- | ------ |
+| HTTP / HTTPS / Fetch lifecycle | Runtime-dependent       | Yes    |
+| HTTP/2                         | Node 22.20+ (22.x only) | No     |
+| Response bodies                | Runtime-dependent       | Yes    |
+| Request bodies                 | Not advertised          | Yes    |
+| WebSocket lifecycle / frames   | Lifecycle only          | Yes    |
+| SSE messages                   | No                      | Yes    |
+| Request/response Mock          | No                      | Yes    |
+
+Native values are probed from the running Node version and Inspector methods.
+Forced Native fails if requirements are missing; Auto returns a structured
+reason whenever it uses Legacy.
+
+Native HTTP/2 is conservatively allowlisted only for Node 22.20+ releases in
+the 22.x line. A non-empty h2c lifecycle passed on Node 22.22.3, while consuming
+a non-empty response with `setEncoding()` crashes the upstream experimental
+Inspector on Node 24.16.0 and 26.8.1 with `Missing dataLength`. Other and future
+majors remain reported as unsupported until independently verified; Legacy does
+not capture HTTP/2.
+
+## Session workflow
+
+Both backends support persistent Network sessions, external response bodies,
+HAR 1.2 export, traceparent correlation, and replay:
+
+```ts
+const registration = register({
+  session: { directory: '.nnd/sessions/run-001', har: true }
+})
+
+await registration.ready
+// run application traffic
+await registration.dispose()
 ```
 
-## ⚙️ Configuration Options
+```bash
+npx nnd replay --dry-run --json .nnd/sessions/run-001
+npx nnd replay capture.har
+```
 
-The `register` function accepts an optional `RegisterOptions` object to customize its behavior. For a complete list of available options and their detailed descriptions, please refer to the [Options Documentation](apps/web/docs/options.md).
+Mock is intentionally Legacy-only. Auto selects Legacy when `legacy.mock` rules
+are configured; forced Native reports `NND_NATIVE_MOCK_CONFLICT`.
 
-![Visitors](https://api.visitorbadge.io/api/visitors?path=https%3A%2F%2Fgithub.com%2FGrinZero%2Fnode-network-devtools&labelColor=%237fa1f7&countColor=%23697689)
+## Documentation
+
+- [npm package guide](packages/network-debugger/README.md)
+- [v1 to v2 migration](docs/v2-migration.md)
+- [v2 architecture and implementation evidence](docs/v2-implementation-plan.md)
+
+The package requires Node.js `>=18.18`. Node 18 and 20 remain compatibility
+lanes for migrations despite being EOL; maintained Node releases are preferred.
+`undici@^6` remains a peer dependency so opt-in Legacy interception can patch
+the application's package instance.

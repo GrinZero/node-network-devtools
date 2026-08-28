@@ -1,190 +1,296 @@
-import { READY_MESSAGE, RequestDetail } from '../common'
-import { type IncomingMessage } from 'http'
-import WebSocket from 'ws'
-import { ChildProcess, fork } from 'child_process'
-import { __dirname } from '../common'
-import { resolve as resolvePath } from 'path'
-import { RegisterOptions } from '../common'
-import fs from 'fs'
-import { sleep, checkMainProcessAlive } from '../utils/process'
-import { unlinkSafe } from '../utils/file'
-import { warn } from '../utils'
-import { getCurrentCell } from './hooks/cell'
+import type { IncomingHttpHeaders, IncomingMessage } from 'node:http'
+import type { DevtoolsTarget, Diagnostic } from '../adapters/types'
+import { RequestDetail, type RegisterOptions } from '../common'
+import {
+  LegacyBridgeClient,
+  type LegacyBridgeClientDependencies,
+  type DiagnosticListener,
+  type FailureListener,
+  type LegacyBridgeError
+} from '../legacy-bridge/client'
+import type {
+  LegacyCaptureEvent,
+  LegacyCaptureSink,
+  LegacyRequestEventType,
+  LegacyResponseData,
+  LegacyWebSocketHandshake
+} from '../legacy-bridge/contracts'
+import { getCurrentCell, type Cell } from './hooks/cell'
 
-class ExpectError extends Error {
-  constructor(message: string) {
-    super(message)
+export type RequestType = LegacyRequestEventType
+
+type CapturedIncomingMessage = NodeJS.ReadableStream & {
+  statusCode?: number
+  statusMessage?: string
+  headers: IncomingHttpHeaders
+  httpVersion?: string
+  rawHeaders?: string[]
+  complete?: boolean
+}
+
+interface LegacyBridgeTransport {
+  readonly ready: Promise<DevtoolsTarget>
+  send(event: LegacyCaptureEvent): Promise<void>
+  onDiagnostic(listener: DiagnosticListener): () => void
+  onFailure(listener: FailureListener): () => void
+  dispose(): Promise<void>
+}
+
+export interface MainProcessDependencies extends LegacyBridgeClientDependencies {
+  bridge?: LegacyBridgeTransport
+}
+
+function headerValue(headers: IncomingHttpHeaders, name: string): string | undefined {
+  const value = headers[name]
+  if (Array.isArray(value)) return value[0]
+  return value === undefined ? undefined : String(value)
+}
+
+function websocketHandshake(response: unknown): LegacyWebSocketHandshake {
+  const value = (response ?? {}) as Partial<IncomingMessage> & Partial<LegacyWebSocketHandshake>
+  return {
+    httpVersion: typeof value.httpVersion === 'string' ? value.httpVersion : '',
+    statusCode: typeof value.statusCode === 'number' ? value.statusCode : 0,
+    statusMessage: typeof value.statusMessage === 'string' ? value.statusMessage : '',
+    rawHeaders: Array.isArray(value.rawHeaders) ? [...value.rawHeaders] : [],
+    headers: value.headers && typeof value.headers === 'object' ? { ...value.headers } : {}
   }
 }
 
 /**
- * @flow initRequest -> registerRequest -> updateRequest -> endRequest
+ * Convert the handful of historical capture call shapes at the compatibility
+ * boundary, and guarantee that sockets/IncomingMessage objects never cross IPC.
  */
-export type RequestType = 'initRequest' | 'registerRequest' | 'updateRequest' | 'endRequest'
+function normalizeCaptureEvent(input: unknown): LegacyCaptureEvent | undefined {
+  if (!input || typeof input !== 'object') return undefined
+  const value = input as Record<string, unknown>
 
-export class MainProcess {
-  private ws: Promise<WebSocket>
-  private options: RegisterOptions
-  private cp?: ChildProcess
-
-  constructor(props: RegisterOptions & { key: string }) {
-    this.options = props
-    this.ws = new Promise<WebSocket>(async (resolve, reject) => {
-      const lockFilePath = resolvePath(__dirname, `./${props.key}`)
-      if (fs.existsSync(lockFilePath)) {
-        // 读取 lock 文件中的进程号
-        const pid = fs.readFileSync(lockFilePath, 'utf-8')
-        await sleep(1)
-
-        // 检测该进程是否存活且 port 是否被占用
-        const isProcessAlice = await checkMainProcessAlive(pid, props.port!)
-        if (isProcessAlice) {
-          warn(`The main process with same options is already running, skip it.`)
-          return
-        }
-        // 如果进程不存在：
-        //   1. 热更新导致 process 重启
-        //   2. 上一个进程未成功删除 lock
-        // 都应该继续往下
-        unlinkSafe(lockFilePath)
-      }
-      fs.writeFileSync(lockFilePath, `${process.pid}`)
-      const socket = new WebSocket(`ws://127.0.0.1:${props.port}`)
-      socket.on('open', () => {
-        unlinkSafe(lockFilePath)
-        resolve(socket)
-      })
-      socket.on('error', () => {
-        this.openProcess(() => {
-          unlinkSafe(lockFilePath)
-          const socket = new WebSocket(`ws://127.0.0.1:${props.port}`)
-          socket.on('open', () => {
-            resolve(socket)
-          })
-          socket.on('error', reject)
-        })
-      })
-    })
-    this.ws
-      .then((ws) => {
-        this.healthCheck()
-        ws.on('error', (e) => {
-          console.error('MainProcess Socket Error: ', e)
-        })
-      })
-      .catch((e) => {
-        if (e instanceof ExpectError) {
-          return
-        }
-        throw e
-      })
+  // v1 accidentally used CDP's method/params shape for this one event.
+  if (value.method === 'Network.webSocketClosed') {
+    const params = (value.params ?? {}) as { requestId?: unknown }
+    if (typeof params.requestId !== 'string') return undefined
+    return {
+      type: 'Network.webSocketClosed',
+      data: { requestId: params.requestId }
+    }
   }
 
-  private openProcess(callback?: (cp: ChildProcess) => void) {
-    const forkProcess = () => {
-      // fork a new process with options
-      const cp = fork(resolvePath(__dirname, './fork'), {
-        env: {
-          ...process.env,
-          NETWORK_OPTIONS: JSON.stringify(this.options)
-        }
-      })
-      const handleMsg = (e: any) => {
-        if (e === READY_MESSAGE) {
-          callback && callback(cp)
-          cp.off('message', handleMsg)
-        }
+  if (typeof value.type !== 'string' || !('data' in value)) return undefined
+  if (value.type === 'Network.webSocketCreated') {
+    const data = value.data as Record<string, unknown>
+    if (!data || typeof data.requestId !== 'string' || typeof data.url !== 'string') {
+      return undefined
+    }
+    return {
+      type: 'Network.webSocketCreated',
+      data: {
+        requestId: data.requestId,
+        url: data.url,
+        ...(data.initiator ? { initiator: data.initiator as RequestDetail['initiator'] } : {}),
+        response: websocketHandshake(data.response)
       }
+    }
+  }
 
-      cp.on('message', handleMsg)
-      this.cp = cp
+  return input as LegacyCaptureEvent
+}
+
+function requestForId(id: string, known?: RequestDetail): RequestDetail {
+  if (known) return known
+  const request = new RequestDetail()
+  request.id = id
+  return request
+}
+
+/**
+ * Compatibility facade used by the existing HTTP/fetch capture patches.
+ * Application-to-child transport is process IPC with advanced serialization.
+ */
+export class MainProcess implements LegacyCaptureSink {
+  readonly ready: Promise<DevtoolsTarget>
+
+  private readonly bridge: LegacyBridgeTransport
+  private readonly requests = new Map<string, RequestDetail>()
+  private readonly requestCells = new Map<string, Cell>()
+  private readonly responseCleanups = new Set<() => void>()
+  private disposed = false
+
+  constructor(
+    props: RegisterOptions & { key: string },
+    dependencies: MainProcessDependencies = {}
+  ) {
+    this.bridge =
+      dependencies.bridge ??
+      new LegacyBridgeClient(
+        {
+          host: '127.0.0.1',
+          targetPort: props.serverPort ?? 0,
+          title: 'Node Network Devtools (Legacy)'
+        },
+        dependencies
+      )
+    this.ready = this.bridge.ready
+  }
+
+  onDiagnostic(listener: (diagnostic: Diagnostic) => void): () => void {
+    return this.bridge.onDiagnostic(listener)
+  }
+
+  onFailure(listener: (error: LegacyBridgeError) => void): () => void {
+    return this.bridge.onFailure(listener)
+  }
+
+  public send(event: LegacyCaptureEvent): Promise<void>
+  public send(event: unknown): Promise<void>
+  public send(event: unknown): Promise<void> {
+    if (this.disposed) return Promise.resolve()
+    const normalized = normalizeCaptureEvent(event)
+    if (!normalized) return Promise.resolve()
+    const sendPromise = this.bridge.send(normalized)
+    const terminalRequestId =
+      normalized.type === 'requestFailed'
+        ? normalized.data.request.id
+        : normalized.type === 'Network.webSocketClosed'
+          ? normalized.data.requestId
+          : undefined
+    if (terminalRequestId) {
+      this.requests.delete(terminalRequestId)
+      this.requestCells.delete(terminalRequestId)
+    }
+    return sendPromise
+  }
+
+  public sendRequest(type: RequestType, request: RequestDetail): this {
+    const requestId = request.id
+    let currentCell = this.requestCells.get(requestId)
+    if ((type === 'initRequest' || type === 'registerRequest') && !currentCell) {
+      const candidate = getCurrentCell()
+      if (candidate?.request.id === requestId) {
+        currentCell = candidate
+        this.requestCells.set(requestId, candidate)
+      }
     }
 
-    forkProcess()
-  }
-
-  public async send(data: any) {
-    const currentCell = getCurrentCell()
     if (currentCell?.isAborted) {
-      return
+      if (type === 'endRequest') this.requestCells.delete(requestId)
+      return this
     }
-    const ws = await this.ws.catch((err) => {
-      if (err instanceof ExpectError) {
-        return null
-      }
-      throw err
-    })
-    if (!ws) return
-    ws.send(JSON.stringify(data))
-  }
 
-  public sendRequest(type: RequestType, request: RequestDetail) {
-    const currentCell = getCurrentCell()
-    let req = request
+    let transformed = request
     if (currentCell) {
-      currentCell.request = req
-      const pipes = currentCell.pipes.filter((p) => p.type === type).map((p) => p.pipe)
-      pipes.forEach((pipe) => {
-        req = pipe(req)
-      })
-      currentCell.request = req
+      currentCell.request = transformed
+      const pipes = currentCell.pipes.filter((pipe) => pipe.type === type)
+      for (const { pipe } of pipes) transformed = pipe(transformed)
+      currentCell.request = transformed
     }
 
-    this.send({
-      type,
-      data: request
-    })
+    if (transformed.id !== requestId && currentCell) {
+      this.requestCells.delete(requestId)
+      this.requestCells.set(transformed.id, currentCell)
+    }
+    this.requests.set(transformed.id, transformed)
+    void this.send({ type, data: transformed })
+    if (type === 'endRequest') {
+      this.requests.delete(transformed.id)
+      this.requestCells.delete(transformed.id)
+    }
     return this
   }
 
-  private async healthCheck() {
-    const ws = await this.ws
-    const ping = () => {
-      ws.send(
-        JSON.stringify({
-          type: 'healthcheck',
-          data: {}
-        })
-      )
+  public responseRequest(id: string, response: CapturedIncomingMessage): void
+  public responseRequest(request: RequestDetail, response: CapturedIncomingMessage): void
+  public responseRequest(
+    idOrRequest: string | RequestDetail,
+    response: CapturedIncomingMessage
+  ): void {
+    if (this.disposed) return
+    const id = typeof idOrRequest === 'string' ? idOrRequest : idOrRequest.id
+    const request = requestForId(
+      id,
+      typeof idOrRequest === 'string' ? this.requests.get(id) : idOrRequest
+    )
+    request.responseHeaders = response.headers ?? request.responseHeaders ?? {}
+    request.responseStatusCode = response.statusCode ?? request.responseStatusCode ?? 0
+    ;(request as RequestDetail & { responseStatusText?: string }).responseStatusText =
+      response.statusMessage
+    this.requests.set(id, request)
+
+    // responseReceived is emitted as soon as headers arrive. Body completion is
+    // deliberately separate so failures never produce loadingFinished.
+    void this.send({ type: 'responseReceived', data: request })
+
+    const chunks: Buffer[] = []
+    let settled = false
+
+    const cleanup = () => {
+      response.off('data', onData)
+      response.off('end', onEnd)
+      response.off('aborted', onAborted)
+      response.off('error', onError)
+      response.off('close', onClose)
+      this.responseCleanups.delete(cleanup)
+      this.requests.delete(id)
+      this.requestCells.delete(id)
     }
-    ping()
-    setInterval(ping, 2000)
-  }
-
-  public responseRequest(id: string, response: IncomingMessage) {
-    const responseBuffer: Buffer[] = []
-
-    response.on('data', (chunk: any) => {
-      responseBuffer.push(chunk)
-    })
-
-    response.on('end', () => {
-      const rawData = Buffer.concat(responseBuffer)
-      this.ws.then((ws) => {
-        ws.send(
-          JSON.stringify({
-            type: 'responseData',
-            data: {
-              id: id,
-              rawData: rawData,
-              statusCode: response.statusCode,
-              headers: response.headers
-            }
-          }),
-          { binary: true }
-        )
+    const fail = (errorText: string, canceled = false) => {
+      if (settled || this.disposed) return
+      settled = true
+      request.requestEndTime = Date.now() / 1_000
+      cleanup()
+      void this.send({
+        type: 'requestFailed',
+        data: {
+          request,
+          errorText,
+          ...(canceled ? { canceled: true } : {})
+        }
       })
-    })
+    }
+    const onData = (chunk: unknown) => {
+      if (settled) return
+      if (Buffer.isBuffer(chunk)) chunks.push(chunk)
+      else if (chunk instanceof Uint8Array) chunks.push(Buffer.from(chunk))
+      else chunks.push(Buffer.from(String(chunk)))
+    }
+    const onEnd = () => {
+      if (settled || this.disposed) return
+      settled = true
+      const rawData = Buffer.concat(chunks)
+      request.requestEndTime = Date.now() / 1_000
+      const data: LegacyResponseData = {
+        id,
+        rawData,
+        statusCode: response.statusCode ?? request.responseStatusCode ?? 0,
+        ...(response.statusMessage ? { statusMessage: response.statusMessage } : {}),
+        headers: response.headers ?? request.responseHeaders ?? {},
+        ...(headerValue(response.headers ?? {}, 'content-encoding')
+          ? { contentEncoding: headerValue(response.headers ?? {}, 'content-encoding') }
+          : {})
+      }
+      cleanup()
+      void this.send({ type: 'responseData', data })
+    }
+    const onAborted = () => fail('The response was aborted.', true)
+    const onError = (error: unknown) => fail(error instanceof Error ? error.message : String(error))
+    const onClose = () => {
+      if (!settled) fail('The response stream closed before completion.')
+    }
+
+    response.on('data', onData)
+    response.once('end', onEnd)
+    response.once('aborted', onAborted)
+    response.once('error', onError)
+    response.once('close', onClose)
+    this.responseCleanups.add(cleanup)
   }
 
-  public async dispose() {
-    const ws = await this.ws
-    ws.removeAllListeners()
-    ws.terminate()
-    if (!this.cp) return
-    this.cp.removeAllListeners()
-    this.cp.kill()
-    this.cp = void 0
+  public async dispose(): Promise<void> {
+    if (this.disposed) return
+    this.disposed = true
+    for (const cleanup of [...this.responseCleanups]) cleanup()
+    this.responseCleanups.clear()
+    this.requests.clear()
+    this.requestCells.clear()
+    await this.bridge.dispose()
   }
 }
-export { __dirname }

@@ -1,0 +1,90 @@
+{
+  "sessionDirectory": "<evidence-root>/.runtime/legacy-session-1787903435249",
+  "manualAssertions": {
+    "passed": true,
+    "discovery": {
+      "list": {
+        "ok": true,
+        "targetCount": 1,
+        "targetIdMatches": true
+      },
+      "version": {
+        "ok": true,
+        "browser": "node-network-devtools/2",
+        "protocolVersion": "1.3"
+      },
+      "protocol": {
+        "ok": true,
+        "domainCount": 4,
+        "networkDomain": true,
+        "networkCommandCount": 7,
+        "networkEventCount": 12
+      }
+    },
+    "failedLifecycle": {
+      "requestId": "25379421-e6bd-43f0-92a2-eb9f2345a4ac",
+      "requestWillBeSent": 1,
+      "responseReceived": 0,
+      "loadingFinished": 0,
+      "loadingFailed": 1
+    },
+    "webSocketBoundary": {
+      "lifecycleCreated": 1,
+      "lifecycleClosed": 1,
+      "framesSent": 2,
+      "framesReceived": 2,
+      "expectedFrameCapture": true
+    },
+    "sseBoundary": {
+      "requestCaptured": true,
+      "messageEvents": 2,
+      "expectedMessageCapture": true
+    },
+    "traceBoundary": {
+      "explicitTraceRequests": 1,
+      "explicitTracePreserved": true,
+      "untracedBusinessRequests": 5,
+      "untracedHeadersAbsent": true
+    }
+  },
+  "manifest": {
+    "schemaVersion": 1,
+    "state": "completed",
+    "stats": {
+      "eventCount": 54,
+      "requestCount": 12,
+      "bodyCount": 10,
+      "bodyErrorCount": 0,
+      "failedRequestCount": 1
+    },
+    "issues": [],
+    "traceContexts": [
+      {
+        "requestId": "1b1612b8-6e03-4483-8d4f-74c232a36835",
+        "parentId": "00f067aa0ba902b7",
+        "traceFlags": "01",
+        "sampled": true,
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        "tracestate": "vendor=manual-pr64"
+      }
+    ]
+  },
+  "har": {
+    "version": "1.2",
+    "creator": {
+      "name": "node-network-devtools",
+      "version": "2"
+    },
+    "entries": 12,
+    "statuses": [200, 200, 200, 200, 200, 201, 200, 0, 200, 0, 207, 202],
+    "replayableEntries": 6
+  },
+  "replay": {
+    "dryRun": true,
+    "dryRunRequests": 6,
+    "dryRunPassed": true,
+    "realRequests": 6,
+    "realPassed": true
+  },
+  "originLeakCount": 0
+}

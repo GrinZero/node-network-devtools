@@ -1,372 +1,577 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import http from 'http'
 import https from 'https'
+import type {
+  AdapterProbe,
+  AdapterSession,
+  CapabilityMap,
+  DevtoolsTarget,
+  Diagnostic
+} from '../adapters/types'
 
-// 使用 vi.hoisted 确保变量在 mock 提升时可用
-const { mainProcessConstructorCalls, mockDispose, mockSendRequest, mockSend } = vi.hoisted(() => {
-  return {
-    mainProcessConstructorCalls: [] as Record<string, unknown>[],
-    mockDispose: vi.fn(),
-    mockSendRequest: vi.fn(),
-    mockSend: vi.fn()
-  }
-})
+const mocks = vi.hoisted(() => ({
+  mainProcessConstructorCalls: [] as Record<string, unknown>[],
+  mainProcessDispose: vi.fn<() => Promise<void>>(),
+  proxyFetch: vi.fn(),
+  unsetFetch: vi.fn(),
+  requestProxyFactory: vi.fn(),
+  getProxyFactory: vi.fn(),
+  undiciFetchProxy: vi.fn(),
+  unsetUndiciFetch: vi.fn(),
+  generateHash: vi.fn(),
+  nativeProbe: vi.fn(),
+  nativeStart: vi.fn(),
+  openDevtoolsTarget: vi.fn<() => Promise<void>>(),
+  sessionRecorderStart: vi.fn(),
+  sessionRecorderClose: vi.fn<() => Promise<void>>(),
+  exportHar: vi.fn<() => Promise<unknown>>()
+}))
 
-// Mock MainProcess 类型定义
-interface MockMainProcessInstance {
-  props: Record<string, unknown>
-  sendRequest: () => MockMainProcessInstance
-  send: () => void
-  dispose: () => void
-}
-
-// Mock 依赖模块 - 使用函数声明而不是类表达式
 vi.mock('./fork', () => {
-  // 使用函数构造器模式
-  function MainProcess(this: MockMainProcessInstance, props: Record<string, unknown>) {
-    this.props = props
-    mainProcessConstructorCalls.push(props)
-    const self = this
-    this.sendRequest = function (): MockMainProcessInstance {
-      mockSendRequest()
-      return self
+  class MainProcess {
+    readonly ready: Promise<DevtoolsTarget>
+
+    constructor(readonly options: Record<string, unknown>) {
+      mocks.mainProcessConstructorCalls.push(options)
+      const port = Number(options.serverPort) || 49_152
+      const id = 'node-network-devtools-legacy-test'
+      const authority = `127.0.0.1:${port}`
+      this.ready = Promise.resolve({
+        id,
+        title: 'Node Network Devtools (Legacy)',
+        type: 'node',
+        url: '',
+        webSocketDebuggerUrl: `ws://${authority}/devtools/page/${id}`,
+        devtoolsFrontendUrl: `devtools://devtools/bundled/js_app.html?ws=${authority}/devtools/page/${id}`,
+        discoveryUrl: `http://${authority}/json/list`
+      })
     }
-    this.send = function (): void {
-      mockSend()
+
+    send() {}
+
+    sendRequest() {
+      return this
     }
-    this.dispose = function (): void {
-      mockDispose()
+
+    responseRequest() {}
+
+    dispose() {
+      return mocks.mainProcessDispose()
+    }
+
+    onDiagnostic() {
+      return () => undefined
+    }
+
+    onFailure() {
+      return () => undefined
     }
   }
 
-  return {
-    __esModule: true,
-    MainProcess
-  }
+  return { MainProcess }
 })
 
-vi.mock('./fetch', () => ({
-  __esModule: true,
-  proxyFetch: vi.fn().mockReturnValue(() => {})
-}))
-
+vi.mock('./fetch', () => ({ proxyFetch: mocks.proxyFetch }))
 vi.mock('./request', () => ({
-  __esModule: true,
-  requestProxyFactory: vi.fn().mockReturnValue(() => {})
+  requestProxyFactory: mocks.requestProxyFactory,
+  getProxyFactory: mocks.getProxyFactory
+}))
+vi.mock('./undici', () => ({ undiciFetchProxy: mocks.undiciFetchProxy }))
+vi.mock('../utils', () => ({ generateHash: mocks.generateHash }))
+vi.mock('../target/frontend-launcher', () => ({
+  openDevtoolsTarget: mocks.openDevtoolsTarget
+}))
+vi.mock('../session', () => ({
+  SessionRecorder: { start: mocks.sessionRecorderStart },
+  exportHar: mocks.exportHar
+}))
+vi.mock('../adapters/node-native', () => ({
+  NodeNativeAdapterError: class NodeNativeAdapterError extends Error {
+    readonly code: string
+    readonly hint?: string
+    readonly diagnostics: readonly Diagnostic[]
+
+    constructor(diagnostic: Diagnostic, diagnostics: readonly Diagnostic[]) {
+      super(diagnostic.message)
+      this.name = 'NodeNativeAdapterError'
+      this.code = diagnostic.code
+      this.hint = diagnostic.hint
+      this.diagnostics = diagnostics
+    }
+  },
+  NodeNativeAdapter: class {
+    readonly kind = 'native' as const
+    probe = mocks.nativeProbe
+    start = mocks.nativeStart
+  }
 }))
 
-vi.mock('./undici', () => ({
-  __esModule: true,
-  undiciFetchProxy: vi.fn().mockReturnValue(() => {})
-}))
-
-vi.mock('../utils', () => ({
-  __esModule: true,
-  generateHash: vi.fn().mockReturnValue('mock-hash-key')
-}))
-
-// 导入被测模块和 mock 模块
 import { register } from './index'
-import { proxyFetch } from './fetch'
-import { requestProxyFactory } from './request'
-import { undiciFetchProxy } from './undici'
-import { generateHash } from '../utils'
+import { disposeActiveRegistration, RuntimeRegistrationError } from '../runtime/controller'
+import { LEGACY_CAPABILITIES } from '../adapters/legacy'
 
-describe('core/index.ts', () => {
+const NATIVE_CAPABILITIES: CapabilityMap = Object.freeze({
+  http: true,
+  https: true,
+  fetch: true,
+  http2: true,
+  responseBody: true,
+  requestBody: true,
+  websocketLifecycle: true,
+  websocketFrames: true,
+  sseMessages: false,
+  initiator: true
+})
+
+const EMPTY_CAPABILITIES: CapabilityMap = Object.freeze({
+  http: false,
+  https: false,
+  fetch: false,
+  http2: false,
+  responseBody: false,
+  requestBody: false,
+  websocketLifecycle: false,
+  websocketFrames: false,
+  sseMessages: false,
+  initiator: false
+})
+
+const NATIVE_TARGET: DevtoolsTarget = Object.freeze({
+  id: 'native-target',
+  title: 'Node.js',
+  type: 'node',
+  url: 'file:///fixture.js',
+  webSocketDebuggerUrl: 'ws://127.0.0.1:9229/native-target',
+  devtoolsFrontendUrl: 'devtools://native-target',
+  discoveryUrl: 'http://127.0.0.1:9229/json/list'
+})
+
+const nativeUnavailableDiagnostic: Diagnostic = Object.freeze({
+  code: 'NND_NATIVE_FLAG_REQUIRED',
+  level: 'error',
+  message: 'Native network inspection requires --experimental-network-inspection.',
+  hint: 'Restart with: node --inspect=0 --experimental-network-inspection <entry>'
+})
+
+const nativeUnavailableProbe = (): AdapterProbe => ({
+  kind: 'native',
+  available: false,
+  autoSelectable: false,
+  capabilities: EMPTY_CAPABILITIES,
+  diagnostics: [nativeUnavailableDiagnostic]
+})
+
+const nativeAvailableProbe = (): AdapterProbe => ({
+  kind: 'native',
+  available: true,
+  autoSelectable: true,
+  capabilities: NATIVE_CAPABILITIES,
+  diagnostics: []
+})
+
+const nativeSession = (dispose = vi.fn<() => Promise<void>>()): AdapterSession => ({
+  kind: 'native',
+  capabilities: NATIVE_CAPABILITIES,
+  target: NATIVE_TARGET,
+  diagnostics: [],
+  dispose
+})
+
+describe('core register compatibility API', () => {
   let originalHttpRequest: typeof http.request
   let originalHttpsRequest: typeof https.request
+  let originalHttpGet: typeof http.get
+  let originalHttpsGet: typeof https.get
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await disposeActiveRegistration()
     vi.clearAllMocks()
-    mainProcessConstructorCalls.length = 0
-    // 保存原始的 request 方法
+    mocks.mainProcessConstructorCalls.length = 0
     originalHttpRequest = http.request
     originalHttpsRequest = https.request
+    originalHttpGet = http.get
+    originalHttpsGet = https.get
+
+    mocks.mainProcessDispose.mockResolvedValue(undefined)
+    mocks.proxyFetch.mockReturnValue(mocks.unsetFetch)
+    mocks.requestProxyFactory.mockImplementation(() => vi.fn())
+    mocks.getProxyFactory.mockImplementation(() => vi.fn())
+    mocks.undiciFetchProxy.mockReturnValue(mocks.unsetUndiciFetch)
+    mocks.generateHash.mockReturnValue('mock-hash-key')
+    mocks.nativeProbe.mockImplementation(nativeUnavailableProbe)
+    mocks.nativeStart.mockImplementation(async () => nativeSession())
+    mocks.openDevtoolsTarget.mockResolvedValue(undefined)
+    mocks.sessionRecorderClose.mockResolvedValue(undefined)
+    mocks.sessionRecorderStart.mockResolvedValue({
+      directory: '/recordings/session-1',
+      getManifest: () => ({ sessionId: 'session-1' }),
+      close: mocks.sessionRecorderClose
+    })
+    mocks.exportHar.mockResolvedValue({})
   })
 
-  afterEach(() => {
-    // 恢复原始的 request 方法
+  afterEach(async () => {
+    await disposeActiveRegistration()
     http.request = originalHttpRequest
     https.request = originalHttpsRequest
+    http.get = originalHttpGet
+    https.get = originalHttpsGet
   })
 
-  describe('register 函数', () => {
-    describe('默认配置', () => {
-      test('不传参数时使用默认配置', () => {
-        const unregister = register()
+  test('register returns a callable handle with an observable ready lifecycle', async () => {
+    const handle = register({ mode: 'legacy' })
 
-        expect(mainProcessConstructorCalls).toHaveLength(1)
-        expect(mainProcessConstructorCalls[0]).toEqual({
-          port: 5270,
-          serverPort: 5271,
-          autoOpenDevtool: true,
-          key: 'mock-hash-key'
-        })
+    expect(typeof handle).toBe('function')
+    expect(handle.ready).toBeInstanceOf(Promise)
+    expect(handle.status()).toEqual({ state: 'starting' })
+    expect(typeof handle.dispose).toBe('function')
+    expect(typeof handle.openDevtools).toBe('function')
+    expect(typeof handle.on).toBe('function')
 
-        // 清理
-        if (unregister) unregister()
-      })
+    const ready = await handle.ready
 
-      test('默认拦截 fetch', () => {
-        const unregister = register()
+    expect(handle.status()).toEqual({ state: 'ready', mode: 'legacy' })
+    expect(ready).toEqual({
+      mode: 'legacy',
+      target: {
+        id: 'node-network-devtools-legacy-test',
+        title: 'Node Network Devtools (Legacy)',
+        type: 'node',
+        url: '',
+        webSocketDebuggerUrl:
+          'ws://127.0.0.1:49152/devtools/page/node-network-devtools-legacy-test',
+        devtoolsFrontendUrl:
+          'devtools://devtools/bundled/js_app.html?ws=127.0.0.1:49152/devtools/page/node-network-devtools-legacy-test',
+        discoveryUrl: 'http://127.0.0.1:49152/json/list'
+      },
+      capabilities: LEGACY_CAPABILITIES,
+      diagnostics: [],
+      fallbackReason: undefined
+    })
+  })
 
-        expect(proxyFetch).toHaveBeenCalled()
+  test('ready exposes the native mode, target, and capabilities', async () => {
+    const disposeNative = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
+    const session = nativeSession(disposeNative)
+    mocks.nativeProbe.mockImplementation(nativeAvailableProbe)
+    mocks.nativeStart.mockResolvedValue(session)
 
-        if (unregister) unregister()
-      })
-
-      test('默认拦截 http/https', () => {
-        const unregister = register()
-
-        expect(requestProxyFactory).toHaveBeenCalledTimes(2)
-
-        if (unregister) unregister()
-      })
-
-      test('默认不拦截 undici', () => {
-        const unregister = register()
-
-        expect(undiciFetchProxy).not.toHaveBeenCalled()
-
-        if (unregister) unregister()
-      })
+    const handle = register({
+      mode: 'native',
+      requiredCapabilities: ['http', 'fetch', 'http2']
     })
 
-    describe('自定义配置', () => {
-      test('自定义端口配置', () => {
-        const unregister = register({
-          port: 8080,
-          serverPort: 8081
-        })
+    await expect(handle.ready).resolves.toEqual({
+      mode: 'native',
+      target: NATIVE_TARGET,
+      capabilities: NATIVE_CAPABILITIES,
+      diagnostics: [],
+      fallbackReason: undefined
+    })
+    expect(mocks.nativeStart).toHaveBeenCalledWith({
+      requiredCapabilities: ['http', 'fetch', 'http2'],
+      inspector: { host: '127.0.0.1', port: 0 }
+    })
+    expect(mocks.mainProcessConstructorCalls).toHaveLength(0)
 
-        expect(mainProcessConstructorCalls).toHaveLength(1)
-        expect(mainProcessConstructorCalls[0]).toMatchObject({
-          port: 8080,
-          serverPort: 8081
-        })
+    await handle.dispose()
+    expect(disposeNative).toHaveBeenCalledOnce()
+  })
 
-        if (unregister) unregister()
-      })
+  test('auto exposes a structured fallback when native is unavailable', async () => {
+    const handle = register({
+      mode: 'auto',
+      requiredCapabilities: ['fetch', 'responseBody']
+    })
 
-      test('禁用自动打开 DevTools', () => {
-        const unregister = register({
-          autoOpenDevtool: false
-        })
+    const ready = await handle.ready
 
-        expect(mainProcessConstructorCalls).toHaveLength(1)
-        expect(mainProcessConstructorCalls[0]).toMatchObject({
-          autoOpenDevtool: false
-        })
+    expect(ready.mode).toBe('legacy')
+    expect(ready.capabilities).toEqual(LEGACY_CAPABILITIES)
+    expect(ready.fallbackReason).toEqual({
+      code: 'NND_AUTO_FALLBACK',
+      level: 'warn',
+      message: 'Native adapter cannot satisfy this selection; using legacy adapter.',
+      hint: 'Use mode "native" to fail instead of falling back.',
+      details: {
+        from: 'native',
+        to: 'legacy',
+        reason: 'unavailable',
+        requiredCapabilities: ['fetch', 'responseBody'],
+        diagnosticCodes: ['NND_NATIVE_FLAG_REQUIRED'],
+        diagnostics: [nativeUnavailableDiagnostic]
+      }
+    })
+    expect(ready.diagnostics).toEqual([ready.fallbackReason])
+    expect(mocks.nativeStart).not.toHaveBeenCalled()
+  })
 
-        if (unregister) unregister()
-      })
+  test('forced native publishes the actionable Native error and releases active state', async () => {
+    const failed = register({ mode: 'native' })
 
-      test('禁用 fetch 拦截', () => {
-        const unregister = register({
-          intercept: {
-            fetch: false
-          }
-        })
+    await expect(failed.ready).rejects.toMatchObject({
+      name: 'NodeNativeAdapterError',
+      code: 'NND_NATIVE_FLAG_REQUIRED',
+      message: 'Native network inspection requires --experimental-network-inspection.',
+      hint: 'Restart with: node --inspect=0 --experimental-network-inspection <entry>'
+    })
+    expect(failed.status()).toMatchObject({ state: 'failed' })
 
-        expect(proxyFetch).not.toHaveBeenCalled()
+    await failed.dispose()
+    expect(failed.status()).toEqual({ state: 'disposed', mode: undefined })
 
-        if (unregister) unregister()
-      })
+    const replacement = register({ mode: 'legacy' })
+    await expect(replacement.ready).resolves.toMatchObject({ mode: 'legacy' })
+  })
 
-      test('禁用 http/https 拦截', () => {
-        const unregister = register({
-          intercept: {
-            normal: false
-          }
-        })
-
-        expect(requestProxyFactory).not.toHaveBeenCalled()
-
-        if (unregister) unregister()
-      })
-
-      test('启用 undici fetch 拦截', () => {
-        const unregister = register({
-          intercept: {
-            undici: {
-              fetch: true
+  test('rejects Native plus Mock synchronously with a stable capability conflict', () => {
+    expect(() =>
+      register({
+        mode: 'native',
+        legacy: {
+          mock: [
+            {
+              match: { url: 'https://example.test/*' },
+              response: { status: 200, body: 'mocked' }
             }
-          }
-        })
-
-        expect(undiciFetchProxy).toHaveBeenCalled()
-
-        if (unregister) unregister()
+          ]
+        }
       })
-
-      test('undici 配置为 false 时不拦截', () => {
-        const unregister = register({
-          intercept: {
-            undici: false
-          }
-        })
-
-        expect(undiciFetchProxy).not.toHaveBeenCalled()
-
-        if (unregister) unregister()
+    ).toThrowError(
+      expect.objectContaining({
+        name: 'RuntimeRegistrationError',
+        code: 'NND_NATIVE_MOCK_CONFLICT',
+        message: 'Request/response mocking is available only with the Legacy backend.'
       })
+    )
+    expect(mocks.nativeStart).not.toHaveBeenCalled()
+    expect(mocks.mainProcessConstructorCalls).toHaveLength(0)
+  })
 
-      test('undici.fetch 为 false 时不拦截', () => {
-        const unregister = register({
-          intercept: {
-            undici: {
-              fetch: false
-            }
-          }
-        })
+  test('Auto selects Legacy and exposes a structured reason when Mock is configured', async () => {
+    mocks.nativeProbe.mockImplementation(nativeAvailableProbe)
+    const mock = [
+      {
+        id: 'fixture',
+        match: { url: 'https://example.test/*' },
+        response: { status: 200, body: 'mocked' }
+      }
+    ] as const
 
-        expect(undiciFetchProxy).not.toHaveBeenCalled()
+    const handle = register({ mode: 'auto', legacy: { mock } })
+    const ready = await handle.ready
 
-        if (unregister) unregister()
-      })
+    expect(ready.mode).toBe('legacy')
+    expect(ready.fallbackReason).toEqual({
+      code: 'NND_AUTO_LEGACY_MOCK_REQUIRED',
+      level: 'info',
+      message: 'Auto selected Legacy because request/response mocking was configured.',
+      hint: 'Remove legacy.mock to allow Auto to select the Native backend.'
+    })
+    expect(ready.diagnostics).toContainEqual(ready.fallbackReason)
+    expect(mocks.nativeStart).not.toHaveBeenCalled()
+    expect(mocks.proxyFetch).toHaveBeenCalledWith(expect.anything(), mock)
+  })
+
+  test('records a Session for either backend and exports HAR before backend disposal', async () => {
+    const handle = register({
+      mode: 'legacy',
+      session: {
+        directory: '/recordings/session-1',
+        bodyCommandTimeoutMs: 2500,
+        har: '/recordings/session-1.har'
+      }
     })
 
-    describe('generateHash 调用', () => {
-      test('使用配置生成 hash key', () => {
-        const unregister = register({
-          port: 3000,
-          serverPort: 3001,
-          autoOpenDevtool: false
-        })
+    const ready = await handle.ready
+    expect(mocks.sessionRecorderStart).toHaveBeenCalledWith({
+      directory: '/recordings/session-1',
+      target: ready.target,
+      bodyCommandTimeoutMs: 2500
+    })
+    expect(ready.session).toEqual({
+      directory: '/recordings/session-1',
+      sessionId: 'session-1'
+    })
+    expect(ready.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'NND_SESSION_RECORDING_STARTED' })
+    )
 
-        expect(generateHash).toHaveBeenCalledWith(
-          JSON.stringify({
-            port: 3000,
-            serverPort: 3001,
-            autoOpenDevtool: false
-          })
-        )
+    await handle.dispose()
+    expect(mocks.sessionRecorderClose).toHaveBeenCalledOnce()
+    expect(mocks.exportHar).toHaveBeenCalledWith(
+      '/recordings/session-1',
+      '/recordings/session-1.har'
+    )
+    expect(mocks.sessionRecorderClose.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.exportHar.mock.invocationCallOrder[0]
+    )
+    expect(mocks.exportHar.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.mainProcessDispose.mock.invocationCallOrder[0]
+    )
+  })
 
-        if (unregister) unregister()
-      })
+  test('releases the backend when Session startup fails', async () => {
+    mocks.sessionRecorderStart.mockRejectedValueOnce(new Error('recording directory exists'))
+    const handle = register({
+      mode: 'legacy',
+      session: { directory: '/recordings/existing' }
     })
 
-    describe('http/https 请求代理', () => {
-      test('http.request 被替换为代理函数', () => {
-        const originalRequest = http.request
-        const unregister = register()
+    await expect(handle.ready).rejects.toThrow('recording directory exists')
+    expect(mocks.mainProcessDispose).toHaveBeenCalledOnce()
+  })
 
-        expect(http.request).not.toBe(originalRequest)
-        expect(requestProxyFactory).toHaveBeenCalledWith(originalRequest, false, expect.anything())
-
-        if (unregister) unregister()
-      })
-
-      test('https.request 被替换为代理函数', () => {
-        const originalRequest = https.request
-        const unregister = register()
-
-        expect(https.request).not.toBe(originalRequest)
-        expect(requestProxyFactory).toHaveBeenCalledWith(originalRequest, true, expect.anything())
-
-        if (unregister) unregister()
-      })
+  test('explicit legacy activates old capture options and restores every patch', async () => {
+    const handle = register({
+      mode: 'legacy',
+      port: 8080,
+      serverPort: 8081,
+      autoOpenDevtool: true,
+      intercept: {
+        fetch: true,
+        normal: true,
+        undici: { fetch: true }
+      }
     })
 
-    describe('unregister 函数', () => {
-      test('返回 unregister 函数', () => {
-        const unregister = register()
+    const ready = await handle.ready
 
-        expect(typeof unregister).toBe('function')
+    expect(new URL(ready.target.webSocketDebuggerUrl).port).toBe('8081')
+    expect(ready.target.discoveryUrl).toBe('http://127.0.0.1:8081/json/list')
 
-        if (unregister) unregister()
-      })
-
-      test('调用 unregister 后恢复 http.request', () => {
-        const originalRequest = http.request
-        const unregister = register()
-
-        expect(http.request).not.toBe(originalRequest)
-
-        if (unregister) unregister()
-
-        expect(http.request).toBe(originalRequest)
-      })
-
-      test('调用 unregister 后恢复 https.request', () => {
-        const originalRequest = https.request
-        const unregister = register()
-
-        expect(https.request).not.toBe(originalRequest)
-
-        if (unregister) unregister()
-
-        expect(https.request).toBe(originalRequest)
-      })
-
-      test('调用 unregister 后调用 MainProcess.dispose', () => {
-        mockDispose.mockClear()
-
-        const unregister = register()
-
-        if (unregister) unregister()
-
-        expect(mockDispose).toHaveBeenCalled()
-      })
-
-      test('禁用 fetch 拦截时 unregister 不调用 fetch 清理函数', () => {
-        const unregister = register({
-          intercept: {
-            fetch: false
-          }
-        })
-
-        // 不应该抛出错误
-        expect(() => {
-          if (unregister) unregister()
-        }).not.toThrow()
-      })
-
-      test('禁用 normal 拦截时 unregister 不恢复 http/https', () => {
-        const originalHttpRequest = http.request
-        const originalHttpsRequest = https.request
-
-        const unregister = register({
-          intercept: {
-            normal: false
-          }
-        })
-
-        // http/https.request 应该保持不变
-        expect(http.request).toBe(originalHttpRequest)
-        expect(https.request).toBe(originalHttpsRequest)
-
-        if (unregister) unregister()
-      })
-
-      test('启用 undici 拦截时 unregister 调用 undici 清理函数', () => {
-        const mockUnsetUndici = vi.fn()
-        vi.mocked(undiciFetchProxy).mockReturnValue(mockUnsetUndici)
-
-        const unregister = register({
-          intercept: {
-            undici: {
-              fetch: true
-            }
-          }
-        })
-
-        if (unregister) unregister()
-
-        expect(mockUnsetUndici).toHaveBeenCalled()
-      })
+    expect(mocks.generateHash).toHaveBeenCalledWith(
+      JSON.stringify({ port: 8080, serverPort: 8081, autoOpenDevtool: false })
+    )
+    expect(mocks.mainProcessConstructorCalls).toEqual([
+      {
+        port: 8080,
+        serverPort: 8081,
+        autoOpenDevtool: false,
+        key: 'mock-hash-key'
+      }
+    ])
+    expect(mocks.proxyFetch).toHaveBeenCalledOnce()
+    expect(mocks.requestProxyFactory).toHaveBeenCalledTimes(2)
+    expect(mocks.requestProxyFactory).toHaveBeenNthCalledWith(
+      1,
+      originalHttpRequest,
+      false,
+      expect.anything()
+    )
+    expect(mocks.requestProxyFactory).toHaveBeenNthCalledWith(
+      2,
+      originalHttpsRequest,
+      true,
+      expect.anything()
+    )
+    expect(mocks.undiciFetchProxy).toHaveBeenCalledOnce()
+    expect(http.request).not.toBe(originalHttpRequest)
+    expect(https.request).not.toBe(originalHttpsRequest)
+    expect(mocks.openDevtoolsTarget).toHaveBeenCalledOnce()
+    expect(mocks.openDevtoolsTarget).toHaveBeenCalledWith(ready.target)
+    expect(ready.diagnostics).toContainEqual({
+      code: 'NND_LEGACY_OPTIONS_DEPRECATED',
+      level: 'warn',
+      message: 'Top-level Legacy options are deprecated.',
+      hint: 'Move capture and port settings under "legacy", and browser behavior under "devtools".'
     })
 
-    describe('多次注册', () => {
-      test('多次注册创建多个 MainProcess 实例', () => {
-        const unregister1 = register()
-        const unregister2 = register()
+    await handle.dispose()
 
-        expect(mainProcessConstructorCalls).toHaveLength(2)
+    expect(mocks.unsetFetch).toHaveBeenCalledOnce()
+    expect(mocks.unsetUndiciFetch).toHaveBeenCalledOnce()
+    expect(mocks.mainProcessDispose).toHaveBeenCalledOnce()
+    expect(http.request).toBe(originalHttpRequest)
+    expect(https.request).toBe(originalHttpsRequest)
+  })
 
-        if (unregister1) unregister1()
-        if (unregister2) unregister2()
-      })
+  test('legacy namespaced options also activate configured interceptors', async () => {
+    const handle = register({
+      mode: 'legacy',
+      legacy: {
+        port: 7070,
+        serverPort: 7071,
+        intercept: {
+          fetch: false,
+          normal: false,
+          undici: { fetch: true }
+        }
+      }
     })
+
+    await handle.ready
+
+    expect(mocks.mainProcessConstructorCalls[0]).toMatchObject({
+      port: 7070,
+      serverPort: 7071,
+      autoOpenDevtool: false
+    })
+    expect(mocks.proxyFetch).not.toHaveBeenCalled()
+    expect(mocks.requestProxyFactory).not.toHaveBeenCalled()
+    expect(mocks.undiciFetchProxy).toHaveBeenCalledOnce()
+    expect(http.request).toBe(originalHttpRequest)
+    expect(https.request).toBe(originalHttpsRequest)
+  })
+
+  test('the same normalized configuration returns one idempotent handle', async () => {
+    const first = register({
+      mode: 'legacy',
+      requiredCapabilities: ['responseBody', 'fetch'],
+      legacy: { port: 6000, serverPort: 6001 }
+    })
+    const second = register({
+      mode: 'legacy',
+      requiredCapabilities: ['fetch', 'responseBody'],
+      legacy: { port: 6000, serverPort: 6001 }
+    })
+
+    expect(second).toBe(first)
+    await first.ready
+    expect(mocks.mainProcessConstructorCalls).toHaveLength(1)
+    expect(mocks.proxyFetch).toHaveBeenCalledOnce()
+  })
+
+  test('a conflicting active configuration fails synchronously with a stable error', async () => {
+    const active = register({ mode: 'legacy', legacy: { port: 6000 } })
+
+    expect(() => register({ mode: 'legacy', legacy: { port: 6001 } })).toThrowError(
+      expect.objectContaining({
+        name: 'RuntimeRegistrationError',
+        code: 'NND_ALREADY_REGISTERED',
+        message: 'Node Network Devtools is already registered with a different configuration.'
+      })
+    )
+    expect(() => register({ mode: 'native' })).toThrow(RuntimeRegistrationError)
+
+    await active.ready
+    expect(mocks.mainProcessConstructorCalls).toHaveLength(1)
+  })
+
+  test('callable cleanup and async dispose share one idempotent cleanup', async () => {
+    const handle = register({ mode: 'legacy' })
+    await handle.ready
+
+    expect(handle()).toBeUndefined()
+    await Promise.all([handle.dispose(), handle.dispose()])
+
+    expect(mocks.unsetFetch).toHaveBeenCalledOnce()
+    expect(mocks.mainProcessDispose).toHaveBeenCalledOnce()
+    expect(handle.status()).toEqual({ state: 'disposed', mode: 'legacy' })
+
+    await handle.dispose()
+    expect(mocks.mainProcessDispose).toHaveBeenCalledOnce()
+  })
+
+  test('browser opening defaults to false and remains explicitly callable', async () => {
+    const handle = register({ mode: 'legacy' })
+    const ready = await handle.ready
+
+    expect(mocks.mainProcessConstructorCalls[0]).toMatchObject({ autoOpenDevtool: false })
+    expect(mocks.openDevtoolsTarget).not.toHaveBeenCalled()
+
+    await handle.openDevtools()
+    expect(mocks.openDevtoolsTarget).toHaveBeenCalledOnce()
+    expect(mocks.openDevtoolsTarget).toHaveBeenCalledWith(ready.target)
   })
 })

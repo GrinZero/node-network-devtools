@@ -15,28 +15,30 @@ export class BodyTransformer {
     const match = contentType.match(/charset=([^;]+)/)
     const encoding = match ? match[1] : 'utf-8'
 
-    const isBinary = !/text|json|xml/.test(contentType)
-    const body = (() => {
-      if (req.responseData === undefined || req.responseData === null) {
-        return void 0
-      }
-      if (isBinary) {
-        return req.responseData.toString('base64')
-      }
-      if (Buffer.isBuffer(req.responseData)) {
-        return iconv.decode(req.responseData, encoding)
-      }
-      // if responseData is `JSON.stringify(Buffer)` => {"type":"Buffer","data":[1,2,3,4,5]}
-      // need to decode the Buffer
+    const isBinary = !/text|json|xml|javascript|x-www-form-urlencoded/.test(contentType)
+    const responseBuffer = (() => {
+      if (Buffer.isBuffer(req.responseData)) return req.responseData
       if (
         typeof req.responseData === 'object' &&
+        req.responseData !== null &&
         'type' in req.responseData &&
         req.responseData.type === 'Buffer' &&
         'data' in req.responseData &&
         Array.isArray(req.responseData.data)
       ) {
-        return iconv.decode(Buffer.from(req.responseData.data), encoding)
+        return Buffer.from(req.responseData.data)
       }
+      if (req.responseData instanceof Uint8Array) return Buffer.from(req.responseData)
+      return undefined
+    })()
+    const body = (() => {
+      if (req.responseData === undefined || req.responseData === null) {
+        return void 0
+      }
+      if (isBinary) {
+        return (responseBuffer ?? Buffer.from(String(req.responseData))).toString('base64')
+      }
+      if (responseBuffer) return iconv.decode(responseBuffer, encoding)
       return req.responseData
     })()
 

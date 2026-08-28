@@ -1,12 +1,24 @@
-import { DevtoolServer } from '../devtool'
-import { DevtoolMessageListener, RequestCenter } from '../request-center'
+import type { DevtoolMessage } from '../devtool'
+import type { DevtoolMessageListener } from '../request-center'
+
+export interface PluginDevtool {
+  timestamp: number
+  getTimestamp(): number
+  updateTimestamp(): void
+  send(message: DevtoolMessage): Promise<unknown>
+}
+
+export interface PluginCore {
+  on<T = unknown>(method: string, listener: DevtoolMessageListener<T>): unknown
+  usePlugin<T = null>(id: string): T
+}
 
 export interface PluginContext {
-  devtool: DevtoolServer
-  core: RequestCenter
+  devtool: PluginDevtool
+  core: PluginCore
 }
 let currentPluginContext: PluginContext | null = null
-const initPluginContext = (core: RequestCenter, devtool: DevtoolServer) => {
+const initPluginContext = (core: PluginCore, devtool: PluginDevtool) => {
   currentPluginContext = {
     devtool,
     core
@@ -15,8 +27,8 @@ const initPluginContext = (core: RequestCenter, devtool: DevtoolServer) => {
 const resetPluginContext = () => (currentPluginContext = null)
 
 export interface CoreCotext {
-  devtool: DevtoolServer
-  core: RequestCenter
+  devtool: PluginDevtool
+  core: PluginCore
   plugins: PluginInstance<any>[]
 }
 

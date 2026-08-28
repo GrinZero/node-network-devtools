@@ -1,137 +1,110 @@
-# 选项
+# 配置选项
 
-## RegisterOptions
+v2 API 将后端选择、Inspector target、前端打开方式、Legacy hook 和会话记录分开配置。
 
-`RegisterOptions` 接口用于配置网络调试器的注册选项。以下是各个选项的详细说明及其默认值。
-
-### 示例
-
-以下是一个使用 `RegisterOptions` 的示例：
-
-```typescript
-import { RegisterOptions, register } from 'node-network-devtools'
+```ts
+import { register, type RegisterOptions } from 'node-network-devtools'
 
 const options: RegisterOptions = {
-  port: 5270,
-  serverPort: 5271,
-  autoOpenDevtool: true,
-  intercept: {
-    fetch: true,
-    normal: true
+  mode: 'auto',
+  requiredCapabilities: ['responseBody'],
+  inspector: { host: '127.0.0.1', port: 0 },
+  devtools: { open: false },
+  session: { directory: '.nnd/sessions/local', har: true },
+  legacy: {
+    serverPort: 0,
+    intercept: { normal: true, fetch: true, undici: { fetch: false } }
   }
 }
 
-// 使用 options 进行网络调试器的注册
-register(options)
+const registration = register(options)
+await registration.ready
+await registration.dispose()
 ```
 
-### port
+## `mode`
 
-- **描述**: 主进程端口
-- **默认值**: `5270`
+- `auto`（默认）：优先选择经过验证的 Native 实现；切换到 Legacy 时会返回结构化原因。
+- `native`：要求 Node 的实验性 Network Inspector 和所有指定能力，绝不静默回退。
+- `legacy`：安装项目自己的捕获 hook，并使用项目提供的标准 CDP target。
 
-### serverPort
+## `requiredCapabilities`
 
-- **描述**: CDP 服务器端口，用于 Devtool
-- **链接**: [devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort}](devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort})
-- **默认值**: `5271`
+数组成员可以是 `http`、`https`、`fetch`、`http2`、`responseBody`、
+`requestBody`、`websocketLifecycle`、`websocketFrames`、`sseMessages` 或
+`initiator`。如果后端缺少任一必需能力，选择过程会失败或回退。
 
-### autoOpenDevtool
+## `inspector`
 
-- **描述**: 是否自动打开 Devtool
-- **默认值**: `true`
+- `host`：Inspector 绑定地址，默认为 `127.0.0.1`。
+- `port`：Inspector 端口，默认为 `0`，即交给操作系统分配。
 
-### intercept
+## `devtools`
 
-- **描述**: 用于拦截不同类型请求的选项。
-  如果某个属性设置为 `false`，则不会拦截该特定类型的请求。
-  默认情况下，如果未明确设置，则全部拦截。
+- `open`：库注册完成后是否显式打开返回的 target，默认为 `false`。
 
-#### intercept.fetch
+后端不会持有或结束由此打开的浏览器进程。
 
-- **描述**: 是否拦截 `fetch` 请求。
-- **默认值**: `true`
+## `session`
 
-#### intercept.normal
+- `directory`：`manifest.json`、`events.ndjson` 和 `bodies/` 的准确输出目录；
+  该目录不能已经包含 Session 产物。
+- `bodyCommandTimeoutMs`：每次 `Network.getResponseBody` 命令的可选正数超时。
+- `har`：`true` 表示在释放时将 `session.har` 写入 Session 目录；字符串表示
+  指定路径；省略或设为 `false` 则不自动导出。
 
-- **描述**: 是否拦截 `http/https` 请求。
-- **默认值**: `true`
+记录器会先于后端关闭，以便未完成的 body 命令能够正常结束。
 
-#### intercept.undici
+## `legacy`
 
-- **描述**: `undici` 请求的拦截选项。设置为 `false` 以禁用所有 `undici` 拦截。否则，请配置特定的 `undici` 拦截选项。
-- **默认值**: `false`
-- **选项**:
-  - `fetch`: 是否拦截 `undici` 的 `fetch` 请求。默认为 `false`。
-  - `normal`: 是否拦截 `undici` 的普通请求。默认为 `false`。
+### `serverPort`
 
-## ConnectOptions
+Legacy CDP discovery/WebSocket target 的端口，默认为 `0`。应用与桥接子进程之间
+已经改用 IPC，不再占用旧的 TCP 端口。
 
-`ConnectOptions` 接口配置连接到网络调试器的选项。
+### `intercept`
 
-### port
+- `normal`：捕获 `http.request/get` 和 `https.request/get`，默认开启。
+- `fetch`：捕获全局 Fetch，默认开启。
+- `undici.fetch`：捕获单独安装的 Undici Fetch，默认关闭，需要显式选择。
+  `undici@^6` 是 package peer，确保 hook 使用应用的同一个模块实例；关闭 peer
+  自动安装时需要手动安装。
 
-- **描述**: 主进程端口
-- **默认值**: `5270`
+关闭的传输会在该 Legacy 会话中报告为不可用能力。
 
-## UnregisterOptions
+### `mock`
 
-`UnregisterOptions` 接口配置取消注册网络调试器的选项。
+按顺序匹配的 Legacy 专用请求/响应规则：
 
-### port
+```ts
+{
+  id: 'fixture',
+  match: {
+    url: 'https://api.example.test/*', // 精确地址或 `*` glob
+    method: 'POST',
+    headers: { 'x-test-mode': 'mock' }
+  },
+  response: {
+    status: 201,
+    statusText: 'Created',
+    headers: { 'content-type': 'application/json' },
+    body: '{"mocked":true}',
+    // bodyBase64: 'AAEC/w==', // 二进制响应可用此字段
+    delayMs: 10
+  }
+}
+```
 
-- **描述**: 主进程端口
-- **默认值**: `5270`
+配置规则后，Auto 会选择 Legacy。强制 Native 会同步抛出
+`NND_NATIVE_MOCK_CONFLICT`。
 
-## SendMessageOptions
+## 已弃用的 v1 字段
 
-`SendMessageOptions` 接口配置发送消息的选项。
+- `adapter` → `mode`
+- `requiredFeatures` → `requiredCapabilities`
+- `autoOpenDevtool` → `devtools.open`
+- 顶层 `serverPort` → `legacy.serverPort`
+- 顶层 `intercept` → `legacy.intercept`
+- `port` → 删除；子进程 IPC 已取代旧的 5270 WebSocket bridge
 
-### port
-
-- **描述**: 主进程端口
-- **默认值**: `5270`
-
-## SetRequestInterceptorOptions
-
-`SetRequestInterceptorOptions` 接口配置设置请求拦截器的选项。
-
-### port
-
-- **描述**: 主进程端口
-- **默认值**: `5270`
-
-### request
-
-- **描述**: 一个用于拦截和修改传出请求的函数。
-
-## SetResponseInterceptorOptions
-
-`SetResponseInterceptorOptions` 接口配置设置响应拦截器的选项。
-
-### port
-
-- **描述**: 主进程端口
-- **默认值**: `5270`
-
-### response
-
-- **描述**: 一个用于拦截和修改传入响应的函数。
-
-## RemoveRequestInterceptorOptions
-
-`RemoveRequestInterceptorOptions` 接口配置移除请求拦截器的选项。
-
-### port
-
-- **描述**: 主进程端口
-- **默认值**: `5270`
-
-## RemoveResponseInterceptorOptions
-
-`RemoveResponseInterceptorOptions` 接口配置移除响应拦截器的选项。
-
-### port
-
-- **描述**: 主进程端口
-- **默认值**: `5270`
+迁移到 v2 期间，这些兼容字段仍然可用，并会产生诊断信息。

@@ -9,7 +9,12 @@ export default defineConfig(({ mode }) => ({
     sourcemap: mode === 'development',
     outDir: 'dist',
     lib: {
-      entry: [resolve(__dirname, 'src/index.ts'), resolve(__dirname, 'src/fork/fork.ts')]
+      entry: {
+        index: resolve(__dirname, 'src/index.ts'),
+        fork: resolve(__dirname, 'src/fork/fork.ts'),
+        cli: resolve(__dirname, 'src/cli/bin.ts'),
+        config: resolve(__dirname, 'src/config/index.ts')
+      }
     },
     rollupOptions: {
       external: [
@@ -24,16 +29,23 @@ export default defineConfig(({ mode }) => ({
         'path',
         'url',
         'node:zlib',
+        'node:fs',
+        'node:fs/promises',
+        'node:module',
+        'node:path',
+        'node:child_process',
         'node:assert',
         'node:util',
         'node:events',
         'node:url',
         'node:net',
         'node:http',
+        'node:https',
         'node:tls',
         'node:stream',
         'node:querystring',
         'node:crypto',
+        'node:v8',
         'node:diagnostics_channel',
         'node:async_hooks',
         'node:buffer',
@@ -70,6 +82,7 @@ export default defineConfig(({ mode }) => ({
           'node:stream': 'node_stream',
           'node:querystring': 'node_querystring',
           'node:crypto': 'node_crypto',
+          'node:v8': 'node_v8',
           'node:inspector': 'node_inspector',
           bufferutil: 'bufferutil'
         }

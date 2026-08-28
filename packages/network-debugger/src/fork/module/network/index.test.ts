@@ -1,1167 +1,373 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import zlib from 'node:zlib'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { RequestDetail } from '../../../common'
+import { CDP_ERROR_CODES } from '../../devtool'
 import type { DevtoolMessageListener } from '../../request-center'
+import { networkPlugin, toMimeType, type NetworkPluginCore } from './index'
 
-// 使用 vi.hoisted 确保变量在 mock 提升时可用
-const { mockCoreOn, mockDevtoolSend, registeredHandlers, mockUsePlugin } = vi.hoisted(() => {
-  const handlers = new Map<string, DevtoolMessageListener<unknown>[]>()
-  return {
-    mockCoreOn: vi.fn((type: string, fn: DevtoolMessageListener<unknown>) => {
-      if (!handlers.has(type)) {
-        handlers.set(type, [])
-      }
-      handlers.get(type)!.push(fn)
-      return () => {
-        const list = handlers.get(type)
-        if (list) {
-          const index = list.indexOf(fn)
-          if (index > -1) {
-            list.splice(index, 1)
-          }
-        }
-      }
-    }),
-    mockDevtoolSend: vi.fn(),
-    registeredHandlers: handlers,
-    mockUsePlugin: vi.fn()
+const handlers = new Map<string, DevtoolMessageListener<any>[]>()
+const send = vi.fn().mockResolvedValue(undefined)
+let timestamp = 100
+let plugin: NetworkPluginCore
+let fixtureDir = ''
+
+function request(overrides: Partial<RequestDetail> = {}) {
+  const detail = new RequestDetail()
+  detail.url = 'http://127.0.0.1:43123/api?source=dynamic'
+  detail.method = 'GET'
+  detail.requestHeaders = {}
+  detail.responseHeaders = {}
+  detail.responseInfo = {}
+  detail.requestStartTime = 1_787_891_800.25
+  Object.assign(detail, overrides)
+  return detail
+}
+
+function loadPlugin() {
+  const core = {
+    on(method: string, listener: DevtoolMessageListener<any>) {
+      const list = handlers.get(method) ?? []
+      list.push(listener)
+      handlers.set(method, list)
+      return () => undefined
+    },
+    usePlugin: vi.fn()
   }
+  return networkPlugin({
+    devtool: {
+      send,
+      timestamp: 0,
+      getTimestamp: () => (timestamp += 0.25),
+      updateTimestamp: () => undefined
+    },
+    core,
+    plugins: [networkPlugin]
+  })
+}
+
+function handler(method: string) {
+  const listener = handlers.get(method)?.[0]
+  if (!listener) throw new Error(`Missing handler ${method}`)
+  return listener
+}
+
+function messages() {
+  return send.mock.calls.map(([message]) => message as Record<string, any>)
+}
+
+function methods() {
+  return messages().map((message) => message.method)
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  handlers.clear()
+  timestamp = 100
+  fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'nnd-network-plugin-'))
+  plugin = loadPlugin()
 })
 
-// 定义 mock 对象的接口类型
-interface MockDevtoolServer {
-  send: ReturnType<typeof vi.fn>
-  close: ReturnType<typeof vi.fn>
-  open: ReturnType<typeof vi.fn>
-  on: ReturnType<typeof vi.fn>
-  listeners: Array<() => void>
-  timestamp: number
-  getTimestamp: ReturnType<typeof vi.fn>
-  updateTimestamp: ReturnType<typeof vi.fn>
-}
+afterEach(() => {
+  fs.rmSync(fixtureDir, { recursive: true, force: true })
+})
 
-interface MockRequestCenter {
-  on: typeof mockCoreOn
-  loadPlugins: ReturnType<typeof vi.fn>
-  usePlugin: typeof mockUsePlugin
-  close: ReturnType<typeof vi.fn>
-}
-
-// 创建 mock 对象
-function createMockDevtool(): MockDevtoolServer {
-  return {
-    send: mockDevtoolSend,
-    close: vi.fn(),
-    open: vi.fn(),
-    on: vi.fn(),
-    listeners: [],
-    timestamp: 0,
-    getTimestamp: vi.fn().mockReturnValue(0),
-    updateTimestamp: vi.fn()
-  }
-}
-
-function createMockCore(): MockRequestCenter {
-  return {
-    on: mockCoreOn,
-    loadPlugins: vi.fn(),
-    usePlugin: mockUsePlugin,
-    close: vi.fn()
-  }
-}
-
-// 创建测试用的 RequestDetail
-function createTestRequest(overrides: Partial<RequestDetail> = {}): RequestDetail {
-  const request = new RequestDetail()
-  request.id = overrides.id || 'test-request-id'
-  request.url = overrides.url || 'http://example.com/api/test'
-  request.method = overrides.method || 'GET'
-  request.requestHeaders = overrides.requestHeaders || { 'Content-Type': 'application/json' }
-  request.requestData = overrides.requestData
-  request.responseData = overrides.responseData
-  request.responseStatusCode = overrides.responseStatusCode || 200
-  request.responseHeaders = overrides.responseHeaders || { 'Content-Type': 'application/json' }
-  request.responseInfo = overrides.responseInfo || { encodedDataLength: 100, dataLength: 100 }
-  request.requestStartTime = overrides.requestStartTime || Date.now()
-  request.requestEndTime = overrides.requestEndTime
-  request.initiator = overrides.initiator
-  return request
-}
-
-describe('fork/module/network/index.ts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    registeredHandlers.clear()
+describe('networkPlugin v2 lifecycle', () => {
+  test('registers capture and asynchronous CDP command handlers', () => {
+    expect(networkPlugin.id).toBe('network')
+    expect([...handlers.keys()]).toEqual(
+      expect.arrayContaining([
+        'initRequest',
+        'registerRequest',
+        'updateRequest',
+        'responseReceived',
+        'responseData',
+        'requestFailed',
+        'endRequest',
+        'eventSourceResponseReceived',
+        'eventSourceMessage',
+        'Network.getResponseBody',
+        'Network.getRequestPostData'
+      ])
+    )
+    expect(plugin.requestCount()).toBe(0)
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  describe('toMimeType 函数', () => {
-    test('从 content-type 中提取 mime type', async () => {
-      const { toMimeType } = await import('./index')
-
-      expect(toMimeType('application/json; charset=utf-8')).toBe('application/json')
-      expect(toMimeType('text/html; charset=utf-8')).toBe('text/html')
-      expect(toMimeType('image/png')).toBe('image/png')
+  test('preserves the real dynamic-origin URL and emits second-based timestamps', async () => {
+    const detail = request({
+      method: 'POST',
+      requestHeaders: { 'content-type': 'application/json' },
+      requestData: Buffer.from('{"ok":true}'),
+      // Accept old millisecond inputs at the bridge boundary.
+      requestStartTime: 1_787_891_800_250
     })
 
-    test('没有分号时返回完整的 content-type', async () => {
-      const { toMimeType } = await import('./index')
+    await handler('registerRequest')({ data: detail })
 
-      expect(toMimeType('application/json')).toBe('application/json')
-      expect(toMimeType('text/plain')).toBe('text/plain')
-    })
-
-    test('空字符串返回 text/plain', async () => {
-      const { toMimeType } = await import('./index')
-
-      expect(toMimeType('')).toBe('text/plain')
-    })
-  })
-
-  describe('networkPlugin', () => {
-    test('插件具有正确的 id', async () => {
-      const { networkPlugin } = await import('./index')
-
-      expect(networkPlugin.id).toBe('network')
-    })
-
-    test('插件注册所有必要的处理器', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 验证注册了所有必要的处理器
-      expect(mockCoreOn).toHaveBeenCalledWith('Network.getResponseBody', expect.any(Function))
-      expect(mockCoreOn).toHaveBeenCalledWith('initRequest', expect.any(Function))
-      expect(mockCoreOn).toHaveBeenCalledWith('registerRequest', expect.any(Function))
-      expect(mockCoreOn).toHaveBeenCalledWith('endRequest', expect.any(Function))
-      expect(mockCoreOn).toHaveBeenCalledWith('responseData', expect.any(Function))
-    })
-
-    test('插件返回 getRequest 和 resourceService', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      expect(result).toHaveProperty('getRequest')
-      expect(result).toHaveProperty('resourceService')
-      expect(typeof result.getRequest).toBe('function')
-    })
-  })
-
-  describe('initRequest 处理器', () => {
-    test('初始化请求并存储', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      const testRequest = createTestRequest({ id: 'init-test-id' })
-
-      // 触发 initRequest 处理器
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      expect(initRequestHandlers).toBeDefined()
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 验证请求被存储
-      const storedRequest = result.getRequest('init-test-id')
-      expect(storedRequest).toBeDefined()
-      expect(storedRequest.id).toBe('init-test-id')
-    })
-
-    test('处理带有 initiator 的请求', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      const testRequest = createTestRequest({
-        id: 'initiator-test-id',
-        initiator: {
-          type: 'script',
-          stack: {
-            callFrames: [
-              {
-                columnNumber: 10,
-                functionName: 'testFunction',
-                lineNumber: 20,
-                url: '/path/to/file.js'
-              }
-            ]
-          }
-        }
-      })
-
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      const storedRequest = result.getRequest('initiator-test-id')
-      expect(storedRequest).toBeDefined()
-      expect(storedRequest.initiator).toBeDefined()
-    })
-
-    test('处理带有 initiator 且 scriptId 存在的请求', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      const pluginResult = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 先获取本地脚本列表，这会填充 resourceService
-      const scriptList = pluginResult.resourceService.getLocalScriptList()
-
-      // 使用一个已知的脚本 URL
-      const knownScriptUrl = scriptList.length > 0 ? scriptList[0].url : ''
-
-      if (knownScriptUrl) {
-        const testRequest = createTestRequest({
-          id: 'initiator-scriptid-test-id',
-          initiator: {
-            type: 'script',
-            stack: {
-              callFrames: [
-                {
-                  columnNumber: 10,
-                  functionName: 'testFunction',
-                  lineNumber: 20,
-                  url: knownScriptUrl.replace('file://', ''),
-                  scriptId: ''
-                }
-              ]
-            }
-          }
-        })
-
-        const initRequestHandlers = registeredHandlers.get('initRequest')
-        initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-        const storedRequest = pluginResult.getRequest('initiator-scriptid-test-id')
-        expect(storedRequest).toBeDefined()
-        // scriptId 应该被设置
-        if (storedRequest.initiator?.stack.callFrames[0]) {
-          expect(storedRequest.initiator.stack.callFrames[0].scriptId).toBeDefined()
+    const event = messages()[0]
+    expect(event).toMatchObject({
+      method: 'Network.requestWillBeSent',
+      params: {
+        documentURL: 'http://127.0.0.1:43123/api?source=dynamic',
+        wallTime: 1_787_891_800.25,
+        request: {
+          url: 'http://127.0.0.1:43123/api?source=dynamic',
+          method: 'POST',
+          postData: '{"ok":true}',
+          hasPostData: true
         }
       }
     })
+    expect(event.params.timestamp).toBeGreaterThan(0)
+    expect(event.params.timestamp).toBeLessThan(10_000_000_000)
+    expect(event.params.wallTime).toBeLessThan(10_000_000_000)
   })
 
-  describe('registerRequest 处理器', () => {
-    test('注册请求并发送 Network.requestWillBeSent', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      const testRequest = createTestRequest({
-        id: 'register-test-id',
-        url: 'http://example.com/api/data',
-        method: 'POST',
-        requestData: { key: 'value' },
-        requestHeaders: { 'Content-Type': 'application/json' }
-      })
-
-      const registerRequestHandlers = registeredHandlers.get('registerRequest')
-      expect(registerRequestHandlers).toBeDefined()
-      registerRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 验证发送了 Network.requestWillBeSent
-      expect(mockDevtoolSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.requestWillBeSent',
-          params: expect.objectContaining({
-            requestId: 'register-test-id',
-            request: expect.objectContaining({
-              url: 'http://example.com/api/data',
-              method: 'POST'
-            })
-          })
-        })
-      )
+  test('emits responseReceived before data and the successful terminal event exactly once', async () => {
+    const detail = request({
+      responseStatusCode: 201,
+      responseStatusText: 'Created',
+      responseHeaders: { 'content-type': 'application/json; charset=utf-8' },
+      responseData: Buffer.from('{"created":true}'),
+      responseInfo: { dataLength: 16, encodedDataLength: 16 }
     })
 
-    test('WebSocket 请求类型为 WebSocket', async () => {
-      const { networkPlugin } = await import('./index')
+    await handler('registerRequest')({ data: detail })
+    await handler('responseReceived')({ data: detail })
+    await handler('endRequest')({ data: detail })
+    await handler('endRequest')({ data: detail })
 
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      const testRequest = createTestRequest({
-        id: 'ws-test-id',
-        url: 'ws://example.com/socket',
-        requestHeaders: { Upgrade: 'websocket' }
-      })
-
-      const registerRequestHandlers = registeredHandlers.get('registerRequest')
-      registerRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      expect(mockDevtoolSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.requestWillBeSent',
-          params: expect.objectContaining({
-            type: 'WebSocket'
-          })
-        })
-      )
-    })
-
-    test('普通请求类型为 Fetch', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      const testRequest = createTestRequest({
-        id: 'fetch-test-id',
-        requestHeaders: { 'Content-Type': 'application/json' }
-      })
-
-      const registerRequestHandlers = registeredHandlers.get('registerRequest')
-      registerRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      expect(mockDevtoolSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.requestWillBeSent',
-          params: expect.objectContaining({
-            type: 'Fetch'
-          })
-        })
-      )
-    })
-
-    test('处理带有 initiator 且 scriptId 存在的 registerRequest', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      const pluginResult = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 先获取本地脚本列表，这会填充 resourceService
-      const scriptList = pluginResult.resourceService.getLocalScriptList()
-
-      // 使用一个已知的脚本 URL
-      const knownScriptUrl = scriptList.length > 0 ? scriptList[0].url : ''
-
-      if (knownScriptUrl) {
-        const testRequest = createTestRequest({
-          id: 'register-initiator-scriptid-test-id',
-          initiator: {
-            type: 'script',
-            stack: {
-              callFrames: [
-                {
-                  columnNumber: 10,
-                  functionName: 'testFunction',
-                  lineNumber: 20,
-                  url: knownScriptUrl.replace('file://', ''),
-                  scriptId: ''
-                }
-              ]
-            }
-          }
-        })
-
-        const registerRequestHandlers = registeredHandlers.get('registerRequest')
-        registerRequestHandlers![0]({ data: testRequest, id: undefined })
-
-        expect(mockDevtoolSend).toHaveBeenCalledWith(
-          expect.objectContaining({
-            method: 'Network.requestWillBeSent'
-          })
-        )
+    expect(methods()).toEqual([
+      'Network.requestWillBeSent',
+      'Network.responseReceived',
+      'Network.dataReceived',
+      'Network.loadingFinished'
+    ])
+    expect(messages()[1]).toMatchObject({
+      params: {
+        type: 'Other',
+        response: {
+          status: 201,
+          statusText: 'Created',
+          mimeType: 'application/json',
+          charset: 'utf-8'
+        }
       }
     })
+    const timestamps = messages()
+      .map((message) => message.params?.timestamp)
+      .filter((value): value is number => typeof value === 'number')
+    expect(timestamps).toEqual([...timestamps].sort((a, b) => a - b))
   })
 
-  describe('endRequest 处理器', () => {
-    test('结束请求并发送完整的响应消息序列', async () => {
-      const { networkPlugin } = await import('./index')
+  test('a pre-response failure emits only requestWillBeSent then loadingFailed', async () => {
+    const detail = request()
 
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      const testRequest = createTestRequest({
-        id: 'end-test-id',
-        responseStatusCode: 200,
-        responseHeaders: { 'Content-Type': 'application/json' },
-        responseInfo: { encodedDataLength: 100, dataLength: 100 }
-      })
-
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      expect(endRequestHandlers).toBeDefined()
-      endRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 验证发送了完整的消息序列
-      expect(mockDevtoolSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived'
-        })
-      )
-      expect(mockDevtoolSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.dataReceived'
-        })
-      )
-      expect(mockDevtoolSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.loadingFinished'
-        })
-      )
+    await handler('requestFailed')({
+      data: {
+        request: detail,
+        errorText: 'ECONNREFUSED',
+        canceled: true,
+        blockedReason: 'other'
+      }
     })
 
-    test('根据 content-type 确定响应类型', async () => {
-      const { networkPlugin } = await import('./index')
+    expect(methods()).toEqual(['Network.requestWillBeSent', 'Network.loadingFailed'])
+    expect(messages()[1]).toMatchObject({
+      params: {
+        errorText: 'ECONNREFUSED',
+        canceled: true,
+        blockedReason: 'other'
+      }
+    })
+    expect(methods()).not.toContain('Network.loadingFinished')
+    expect(methods()).not.toContain('Network.responseReceived')
+  })
 
-      // 测试 Image 类型
-      const mockDevtool1 = createMockDevtool()
-      const mockCore1 = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool1,
-        core: mockCore1,
-        plugins: []
-      })
-
-      const imageRequest = createTestRequest({
-        id: 'image-test-id',
-        responseHeaders: { 'Content-Type': 'image/png' }
-      })
-
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: imageRequest, id: undefined })
-
-      expect(mockDevtool1.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived',
-          params: expect.objectContaining({
-            type: 'Image'
-          })
-        })
-      )
+  test('a post-header failure keeps responseReceived but never emits loadingFinished', async () => {
+    const detail = request({
+      responseStatusCode: 502,
+      responseStatusText: 'Bad Gateway',
+      responseHeaders: { 'content-type': 'text/plain' }
     })
 
-    test('JavaScript 响应类型为 Script', async () => {
-      const { networkPlugin } = await import('./index')
+    await handler('registerRequest')({ data: detail })
+    await handler('requestFailed')({ data: { request: detail, errorText: 'stream reset' } })
 
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
+    expect(methods()).toEqual([
+      'Network.requestWillBeSent',
+      'Network.responseReceived',
+      'Network.loadingFailed'
+    ])
+    expect(methods()).not.toContain('Network.loadingFinished')
+  })
 
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
+  test('decodes compressed response DTOs and exposes body through async result', async () => {
+    const detail = request()
+    const body = Buffer.from('compressed response')
+    await handler('registerRequest')({ data: detail })
+    await handler('responseData')({
+      data: {
+        id: detail.id,
+        rawData: zlib.gzipSync(body),
+        statusCode: 200,
+        statusMessage: 'OK',
+        headers: { 'content-type': 'text/plain; charset=utf-8' },
+        contentEncoding: 'gzip'
+      }
+    })
+    const result = vi.fn().mockResolvedValue(undefined)
+    const error = vi.fn().mockResolvedValue(undefined)
 
-      const jsRequest = createTestRequest({
-        id: 'js-test-id',
-        responseHeaders: { 'Content-Type': 'application/javascript' }
-      })
-
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: jsRequest, id: undefined })
-
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived',
-          params: expect.objectContaining({
-            type: 'Script'
-          })
-        })
-      )
+    await handler('Network.getResponseBody')({
+      data: { requestId: detail.id },
+      id: 0,
+      result,
+      error
     })
 
-    test('CSS 响应类型为 Stylesheet', async () => {
-      const { networkPlugin } = await import('./index')
+    expect(methods()).toEqual([
+      'Network.requestWillBeSent',
+      'Network.responseReceived',
+      'Network.dataReceived',
+      'Network.loadingFinished'
+    ])
+    expect(result).toHaveBeenCalledWith({ body: 'compressed response', base64Encoded: false })
+    expect(error).not.toHaveBeenCalled()
+  })
 
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
+  test('returns standard command errors for invalid or unfinished body requests', async () => {
+    const detail = request()
+    await handler('initRequest')({ data: detail })
+    const error = vi.fn().mockResolvedValue(undefined)
 
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
+    await handler('Network.getResponseBody')({ data: {}, error })
+    expect(error).toHaveBeenLastCalledWith(
+      CDP_ERROR_CODES.INVALID_PARAMS,
+      'requestId must be a string.'
+    )
 
-      const cssRequest = createTestRequest({
-        id: 'css-test-id',
-        responseHeaders: { 'Content-Type': 'text/css' }
-      })
+    await handler('Network.getResponseBody')({ data: { requestId: detail.id }, error })
+    expect(error).toHaveBeenLastCalledWith(
+      CDP_ERROR_CODES.SERVER_ERROR,
+      `No finished request with id ${detail.id}.`
+    )
+  })
 
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: cssRequest, id: undefined })
+  test('returns captured post data or a server error through command callbacks', async () => {
+    const withBody = request({ requestData: new Uint8Array(Buffer.from('a=1')) })
+    const withoutBody = request()
+    await handler('initRequest')({ data: withBody })
+    await handler('initRequest')({ data: withoutBody })
+    const result = vi.fn().mockResolvedValue(undefined)
+    const error = vi.fn().mockResolvedValue(undefined)
 
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived',
-          params: expect.objectContaining({
-            type: 'Stylesheet'
-          })
-        })
-      )
+    await handler('Network.getRequestPostData')({
+      data: { requestId: withBody.id },
+      result,
+      error
+    })
+    await handler('Network.getRequestPostData')({
+      data: { requestId: withoutBody.id },
+      result,
+      error
     })
 
-    test('HTML 响应类型为 Document', async () => {
-      const { networkPlugin } = await import('./index')
+    expect(result).toHaveBeenCalledWith({ postData: 'a=1' })
+    expect(error).toHaveBeenCalledWith(
+      CDP_ERROR_CODES.SERVER_ERROR,
+      `No request body for ${withoutBody.id}.`
+    )
+  })
 
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      const htmlRequest = createTestRequest({
-        id: 'html-test-id',
-        responseHeaders: { 'Content-Type': 'text/html' }
-      })
-
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: htmlRequest, id: undefined })
-
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived',
-          params: expect.objectContaining({
-            type: 'Document'
-          })
-        })
-      )
+  test('emits SSE response, messages, and terminal events in protocol order', async () => {
+    const detail = request({
+      responseStatusCode: 200,
+      responseStatusText: 'OK',
+      responseHeaders: { 'content-type': 'text/event-stream; charset=utf-8' },
+      responseData: Buffer.from('event: update\ndata: one\n\n'),
+      responseInfo: { dataLength: 25, encodedDataLength: 25 }
     })
 
-    test('未知类型响应为 Other', async () => {
-      const { networkPlugin } = await import('./index')
+    await handler('registerRequest')({ data: detail })
+    await handler('eventSourceResponseReceived')({ data: detail })
+    await handler('eventSourceMessage')({
+      data: { requestId: detail.id, eventName: 'update', eventId: '42', data: 'one\ntwo' }
+    })
+    await handler('endRequest')({ data: detail })
 
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      const otherRequest = createTestRequest({
-        id: 'other-test-id',
-        responseHeaders: { 'Content-Type': 'application/octet-stream' }
-      })
-
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: otherRequest, id: undefined })
-
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived',
-          params: expect.objectContaining({
-            type: 'Other'
-          })
-        })
-      )
+    expect(methods()).toEqual([
+      'Network.requestWillBeSent',
+      'Network.responseReceived',
+      'Network.eventSourceMessageReceived',
+      'Network.dataReceived',
+      'Network.loadingFinished'
+    ])
+    expect(messages()[1].params.type).toBe('EventSource')
+    expect(messages()[2].params).toMatchObject({
+      eventName: 'update',
+      eventId: '42',
+      data: 'one\ntwo'
     })
   })
 
-  describe('Network.getResponseBody 处理器', () => {
-    test('返回请求的响应体', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      const result = networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 先初始化一个请求
-      const testRequest = createTestRequest({
-        id: 'body-test-id',
-        responseData: Buffer.from('{"message":"hello"}'),
-        responseHeaders: { 'Content-Type': 'application/json' }
-      })
-
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      // 请求响应体
-      const getResponseBodyHandlers = registeredHandlers.get('Network.getResponseBody')
-      expect(getResponseBodyHandlers).toBeDefined()
-      getResponseBodyHandlers![0]({ data: { requestId: 'body-test-id' }, id: 'response-id-1' })
-
-      expect(mockDevtoolSend).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'response-id-1',
-          result: expect.objectContaining({
-            body: expect.any(String),
-            base64Encoded: expect.any(Boolean)
-          })
-        })
-      )
+  test('lazily registers and announces an initiator script before its request', async () => {
+    const scriptPath = path.join(fixtureDir, 'initiator.js')
+    fs.writeFileSync(scriptPath, 'export const initiator = true')
+    const detail = request({
+      initiator: {
+        type: 'script',
+        stack: {
+          callFrames: [
+            {
+              functionName: 'callApi',
+              url: scriptPath,
+              lineNumber: 1,
+              columnNumber: 2
+            }
+          ]
+        }
+      }
     })
 
-    test('请求不存在时不发送响应', async () => {
-      const { networkPlugin } = await import('./index')
+    await handler('registerRequest')({ data: detail })
+    await handler('registerRequest')({ data: detail })
 
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-      // 请求不存在的响应体
-      const getResponseBodyHandlers = registeredHandlers.get('Network.getResponseBody')
-      getResponseBodyHandlers![0]({ data: { requestId: 'non-existent-id' }, id: 'response-id-2' })
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith('request is not found')
-
-      consoleErrorSpy.mockRestore()
+    expect(methods()).toEqual(['Debugger.scriptParsed', 'Network.requestWillBeSent'])
+    expect(messages()[0].params).toMatchObject({
+      scriptId: '1',
+      scriptLanguage: 'JavaScript'
     })
-
-    test('没有 id 时不发送响应', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-      // 没有 id 的请求
-      const getResponseBodyHandlers = registeredHandlers.get('Network.getResponseBody')
-      getResponseBodyHandlers![0]({ data: { requestId: 'some-id' }, id: undefined })
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith('request is not found')
-
-      consoleErrorSpy.mockRestore()
-    })
+    expect(detail.initiator!.stack.callFrames[0].scriptId).toBe('1')
+    expect(plugin.resourceService.getLocalScriptList()).toHaveLength(1)
   })
 
-  describe('responseData 处理器', () => {
-    test('处理响应数据并结束请求', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 先初始化一个请求
-      const testRequest = createTestRequest({ id: 'response-data-test-id' })
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      // 发送响应数据
-      const responseDataHandlers = registeredHandlers.get('responseData')
-      expect(responseDataHandlers).toBeDefined()
-
-      const rawData = Array.from(Buffer.from('{"result":"success"}'))
-      responseDataHandlers![0]({
-        data: {
-          id: 'response-data-test-id',
-          rawData,
-          statusCode: 200,
-          headers: { 'Content-Type': 'application/json' }
-        },
-        id: undefined
-      })
-
-      // 等待异步解压缩完成
-      await vi.waitFor(() => {
-        expect(mockDevtoolSend).toHaveBeenCalledWith(
-          expect.objectContaining({
-            method: 'Network.responseReceived'
-          })
-        )
-      })
+  test.each([
+    ['image/png', 'Image'],
+    ['application/javascript', 'Script'],
+    ['text/css', 'Stylesheet'],
+    ['text/html', 'Document'],
+    ['application/octet-stream', 'Other']
+  ])('maps %s responses to %s', async (contentType, type) => {
+    const detail = request({
+      responseStatusCode: 200,
+      responseHeaders: { 'content-type': contentType }
     })
-
-    test('请求不存在时不处理响应数据', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      // 发送不存在请求的响应数据
-      const responseDataHandlers = registeredHandlers.get('responseData')
-      const rawData = Array.from(Buffer.from('test'))
-      responseDataHandlers![0]({
-        data: {
-          id: 'non-existent-id',
-          rawData,
-          statusCode: 200,
-          headers: {}
-        },
-        id: undefined
-      })
-
-      // 不应该发送任何消息
-      expect(mockDevtoolSend).not.toHaveBeenCalled()
-    })
-
-    test('处理 gzip 压缩的响应数据', async () => {
-      const zlib = await import('zlib')
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 先初始化一个请求
-      const testRequest = createTestRequest({ id: 'gzip-test-id' })
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      // 创建 gzip 压缩的数据
-      const originalData = '{"compressed":"data"}'
-      const compressedData = zlib.gzipSync(Buffer.from(originalData))
-
-      const responseDataHandlers = registeredHandlers.get('responseData')
-      responseDataHandlers![0]({
-        data: {
-          id: 'gzip-test-id',
-          rawData: Array.from(compressedData),
-          statusCode: 200,
-          headers: { 'Content-Encoding': 'gzip' }
-        },
-        id: undefined
-      })
-
-      // 等待异步解压缩完成
-      await vi.waitFor(() => {
-        expect(mockDevtoolSend).toHaveBeenCalledWith(
-          expect.objectContaining({
-            method: 'Network.responseReceived'
-          })
-        )
-      })
-    })
-
-    test('处理 deflate 压缩的响应数据', async () => {
-      const zlib = await import('zlib')
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 先初始化一个请求
-      const testRequest = createTestRequest({ id: 'deflate-test-id' })
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      // 创建 deflate 压缩的数据
-      const originalData = '{"deflate":"data"}'
-      const compressedData = zlib.deflateSync(Buffer.from(originalData))
-
-      const responseDataHandlers = registeredHandlers.get('responseData')
-      responseDataHandlers![0]({
-        data: {
-          id: 'deflate-test-id',
-          rawData: Array.from(compressedData),
-          statusCode: 200,
-          headers: { 'Content-Encoding': 'deflate' }
-        },
-        id: undefined
-      })
-
-      // 等待异步解压缩完成
-      await vi.waitFor(() => {
-        expect(mockDevtoolSend).toHaveBeenCalledWith(
-          expect.objectContaining({
-            method: 'Network.responseReceived'
-          })
-        )
-      })
-    })
-
-    test('处理 brotli 压缩的响应数据', async () => {
-      const zlib = await import('zlib')
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: [networkPlugin]
-      })
-
-      // 先初始化一个请求
-      const testRequest = createTestRequest({ id: 'brotli-test-id' })
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 清除之前的调用记录
-      mockDevtoolSend.mockClear()
-
-      // 创建 brotli 压缩的数据
-      const originalData = '{"brotli":"data"}'
-      const compressedData = zlib.brotliCompressSync(Buffer.from(originalData))
-
-      const responseDataHandlers = registeredHandlers.get('responseData')
-      responseDataHandlers![0]({
-        data: {
-          id: 'brotli-test-id',
-          rawData: Array.from(compressedData),
-          statusCode: 200,
-          headers: { 'Content-Encoding': 'br' }
-        },
-        id: undefined
-      })
-
-      // 等待异步解压缩完成
-      await vi.waitFor(() => {
-        expect(mockDevtoolSend).toHaveBeenCalledWith(
-          expect.objectContaining({
-            method: 'Network.responseReceived'
-          })
-        )
-      })
-    })
+    await handler('responseReceived')({ data: detail })
+    expect(
+      messages().find((message) => message.method === 'Network.responseReceived')?.params.type
+    ).toBe(type)
   })
+})
 
-  describe('endRequest 边界情况', () => {
-    test('没有 content-type 时使用默认值', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      const testRequest = createTestRequest({
-        id: 'no-content-type-id',
-        responseHeaders: {} // 没有 content-type
-      })
-
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived',
-          params: expect.objectContaining({
-            response: expect.objectContaining({
-              mimeType: 'text/plain'
-            })
-          })
-        })
-      )
-    })
-
-    test('没有 requestEndTime 时使用当前时间', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      const testRequest = createTestRequest({
-        id: 'no-end-time-id',
-        requestEndTime: undefined
-      })
-
-      const beforeTime = Date.now()
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: testRequest, id: undefined })
-      const afterTime = Date.now()
-
-      // 验证 requestEndTime 被设置
-      expect(mockDevtool.send).toHaveBeenCalled()
-    })
-  })
-
-  describe('Server-Sent Events (SSE) 支持', () => {
-    test('eventSourceMessage 处理器发送 CDP 消息', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      // 先注册一个请求
-      const testRequest = createTestRequest({
-        id: 'sse-request-id',
-        url: 'http://example.com/sse'
-      })
-
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 发送 eventSourceMessage
-      const eventSourceHandlers = registeredHandlers.get('eventSourceMessage')
-      expect(eventSourceHandlers).toBeDefined()
-
-      eventSourceHandlers![0]({
-        data: {
-          requestId: 'sse-request-id',
-          eventName: 'message',
-          eventId: '1',
-          data: 'Hello SSE'
-        },
-        id: undefined
-      })
-
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.eventSourceMessageReceived',
-          params: expect.objectContaining({
-            requestId: 'sse-request-id',
-            eventName: 'message',
-            eventId: '1',
-            data: 'Hello SSE'
-          })
-        })
-      )
-    })
-
-    test('eventSourceMessage 处理自定义事件类型', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      // 先注册一个请求
-      const testRequest = createTestRequest({
-        id: 'sse-custom-event-id',
-        url: 'http://example.com/sse'
-      })
-
-      const initRequestHandlers = registeredHandlers.get('initRequest')
-      initRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      // 发送自定义事件类型的 eventSourceMessage
-      const eventSourceHandlers = registeredHandlers.get('eventSourceMessage')
-
-      eventSourceHandlers![0]({
-        data: {
-          requestId: 'sse-custom-event-id',
-          eventName: 'customEvent',
-          eventId: '42',
-          data: '{"status": "complete"}'
-        },
-        id: undefined
-      })
-
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.eventSourceMessageReceived',
-          params: expect.objectContaining({
-            requestId: 'sse-custom-event-id',
-            eventName: 'customEvent',
-            eventId: '42',
-            data: '{"status": "complete"}'
-          })
-        })
-      )
-    })
-
-    test('eventSourceMessage 对未知请求 ID 不发送消息', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      // 不注册请求，直接发送 eventSourceMessage
-      const eventSourceHandlers = registeredHandlers.get('eventSourceMessage')
-
-      eventSourceHandlers![0]({
-        data: {
-          requestId: 'unknown-request-id',
-          eventName: 'message',
-          eventId: '',
-          data: 'test'
-        },
-        id: undefined
-      })
-
-      // 不应该发送 eventSourceMessageReceived
-      const eventSourceCalls = mockDevtool.send.mock.calls.filter(
-        (call: unknown[]) =>
-          (call[0] as { method?: string })?.method === 'Network.eventSourceMessageReceived'
-      )
-      expect(eventSourceCalls.length).toBe(0)
-    })
-
-    test('text/event-stream 类型被识别为 EventSource', async () => {
-      const { networkPlugin } = await import('./index')
-
-      const mockDevtool = createMockDevtool()
-      const mockCore = createMockCore()
-      registeredHandlers.clear()
-
-      networkPlugin({
-        devtool: mockDevtool,
-        core: mockCore,
-        plugins: []
-      })
-
-      const testRequest = createTestRequest({
-        id: 'sse-type-test-id',
-        responseHeaders: { 'content-type': 'text/event-stream' }
-      })
-
-      const endRequestHandlers = registeredHandlers.get('endRequest')
-      endRequestHandlers![0]({ data: testRequest, id: undefined })
-
-      expect(mockDevtool.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          method: 'Network.responseReceived',
-          params: expect.objectContaining({
-            type: 'EventSource'
-          })
-        })
-      )
-    })
+describe('toMimeType', () => {
+  test.each([
+    ['application/json; charset=utf-8', 'application/json'],
+    ['text/plain', 'text/plain'],
+    ['', 'text/plain']
+  ])('normalizes %j', (input, expected) => {
+    expect(toMimeType(input)).toBe(expected)
   })
 })

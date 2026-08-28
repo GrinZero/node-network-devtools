@@ -4,31 +4,38 @@ import type { DevtoolMessageListener } from '../../request-center'
 import type { IncomingMessage } from 'http'
 
 // 使用 vi.hoisted 确保变量在 mock 提升时可用
-const { mockCoreOn, mockDevtoolSend, registeredHandlers, mockUsePlugin, mockGetRequest } =
-  vi.hoisted(() => {
-    const handlers = new Map<string, DevtoolMessageListener<unknown>[]>()
-    return {
-      mockCoreOn: vi.fn((type: string, fn: DevtoolMessageListener<unknown>) => {
-        if (!handlers.has(type)) {
-          handlers.set(type, [])
-        }
-        handlers.get(type)!.push(fn)
-        return () => {
-          const list = handlers.get(type)
-          if (list) {
-            const index = list.indexOf(fn)
-            if (index > -1) {
-              list.splice(index, 1)
-            }
+const {
+  mockCoreOn,
+  mockDevtoolSend,
+  registeredHandlers,
+  mockUsePlugin,
+  mockGetRequest,
+  mockRemoveRequest
+} = vi.hoisted(() => {
+  const handlers = new Map<string, DevtoolMessageListener<unknown>[]>()
+  return {
+    mockCoreOn: vi.fn((type: string, fn: DevtoolMessageListener<unknown>) => {
+      if (!handlers.has(type)) {
+        handlers.set(type, [])
+      }
+      handlers.get(type)!.push(fn)
+      return () => {
+        const list = handlers.get(type)
+        if (list) {
+          const index = list.indexOf(fn)
+          if (index > -1) {
+            list.splice(index, 1)
           }
         }
-      }),
-      mockDevtoolSend: vi.fn().mockResolvedValue(undefined),
-      registeredHandlers: handlers,
-      mockUsePlugin: vi.fn(),
-      mockGetRequest: vi.fn()
-    }
-  })
+      }
+    }),
+    mockDevtoolSend: vi.fn().mockResolvedValue(undefined),
+    registeredHandlers: handlers,
+    mockUsePlugin: vi.fn(),
+    mockGetRequest: vi.fn(),
+    mockRemoveRequest: vi.fn()
+  }
+})
 
 // Mock DevtoolServer 和 RequestCenter 模块
 vi.mock('../../devtool', () => ({
@@ -113,6 +120,7 @@ describe('fork/module/websocket/index.ts', () => {
     // 设置 mockUsePlugin 返回 network 插件的 mock
     mockUsePlugin.mockReturnValue({
       getRequest: mockGetRequest,
+      removeRequest: mockRemoveRequest,
       resourceService: {
         getScriptSource: vi.fn(),
         getLocalScriptList: vi.fn().mockReturnValue([]),
@@ -489,6 +497,7 @@ describe('fork/module/websocket/index.ts', () => {
           requestId: 'ws-closed-test'
         })
       })
+      expect(mockRemoveRequest).toHaveBeenCalledWith('ws-closed-test')
     })
 
     test('没有 requestId 时不发送', async () => {

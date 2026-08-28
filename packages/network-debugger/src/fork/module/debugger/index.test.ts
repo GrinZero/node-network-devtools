@@ -1,332 +1,142 @@
-import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { CDP_ERROR_CODES } from '../../devtool'
 import type { DevtoolMessageListener } from '../../request-center'
+import type { PluginCore } from '../common'
+import { debuggerPlugin } from './index'
 
-// 使用 vi.hoisted 确保变量在 mock 提升时可用
-const {
-  mockCoreOn,
-  mockDevtoolSend,
-  registeredHandlers,
-  mockUsePlugin,
-  mockGetScriptSource,
-  mockGetLocalScriptList
-} = vi.hoisted(() => {
-  const handlers = new Map<string, DevtoolMessageListener<unknown>[]>()
-  return {
-    mockCoreOn: vi.fn((type: string, fn: DevtoolMessageListener<unknown>) => {
-      if (!handlers.has(type)) {
-        handlers.set(type, [])
-      }
-      handlers.get(type)!.push(fn)
-      return () => {
-        const list = handlers.get(type)
-        if (list) {
-          const index = list.indexOf(fn)
-          if (index > -1) {
-            list.splice(index, 1)
-          }
-        }
-      }
-    }),
-    mockDevtoolSend: vi.fn(),
-    registeredHandlers: handlers,
-    mockUsePlugin: vi.fn(),
-    mockGetScriptSource: vi.fn(),
-    mockGetLocalScriptList: vi.fn()
+const handlers = new Map<string, DevtoolMessageListener<any>[]>()
+const send = vi.fn().mockResolvedValue(undefined)
+const getScriptSource = vi.fn()
+const getLocalScriptList = vi.fn()
+
+function loadPlugin() {
+  const networkPlugin = {
+    getRequest: vi.fn(),
+    resourceService: {
+      getScriptSource,
+      getLocalScriptList,
+      getScriptIdByUrl: vi.fn()
+    }
   }
+  const core: PluginCore = {
+    on<T>(method: string, listener: DevtoolMessageListener<T>) {
+      const list = handlers.get(method) ?? []
+      list.push(listener as DevtoolMessageListener<any>)
+      handlers.set(method, list)
+      return () => undefined
+    },
+    usePlugin<T>() {
+      return networkPlugin as unknown as T
+    }
+  }
+  debuggerPlugin({
+    devtool: {
+      send,
+      timestamp: 0,
+      getTimestamp: () => 0,
+      updateTimestamp: () => undefined
+    },
+    core,
+    plugins: [debuggerPlugin]
+  })
+}
+
+function handler(method: string) {
+  const listener = handlers.get(method)?.[0]
+  if (!listener) throw new Error(`Missing handler ${method}`)
+  return listener
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  handlers.clear()
+  getLocalScriptList.mockReturnValue([])
+  loadPlugin()
 })
 
-// Mock DevtoolServer 和 RequestCenter 模块
-vi.mock('../../devtool', () => ({
-  DevtoolServer: vi.fn()
-}))
-
-vi.mock('../../request-center', () => ({
-  RequestCenter: vi.fn()
-}))
-
-// 创建测试用的 mock 上下文对象
-const createMockContext = () => ({
-  devtool: {
-    send: mockDevtoolSend,
-    getTimestamp: vi.fn().mockReturnValue(0),
-    updateTimestamp: vi.fn(),
-    timestamp: 0
-  },
-  core: {
-    on: mockCoreOn,
-    usePlugin: mockUsePlugin
-  },
-  plugins: []
-})
-
-describe('fork/module/debugger/index.ts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    registeredHandlers.clear()
-
-    // 设置 mockUsePlugin 返回 network 插件的 mock
-    mockUsePlugin.mockReturnValue({
-      getRequest: vi.fn(),
-      resourceService: {
-        getScriptSource: mockGetScriptSource,
-        getLocalScriptList: mockGetLocalScriptList,
-        getScriptIdByUrl: vi.fn()
-      }
-    })
-
-    // 默认返回空脚本列表
-    mockGetLocalScriptList.mockReturnValue([])
+describe('debuggerPlugin v2 command semantics', () => {
+  test('registers lazy source and reconnect handlers', () => {
+    expect(debuggerPlugin.id).toBe('debugger')
+    expect(handlers.has('Debugger.getScriptSource')).toBe(true)
+    expect(handlers.has('onConnect')).toBe(true)
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
+  test('resolves getScriptSource through the command result callback', async () => {
+    getScriptSource.mockReturnValue('console.log("source")')
+    const result = vi.fn().mockResolvedValue(undefined)
+    const error = vi.fn().mockResolvedValue(undefined)
+
+    await handler('Debugger.getScriptSource')({
+      data: { scriptId: 'script-1' },
+      id: 0,
+      result,
+      error
+    })
+
+    expect(getScriptSource).toHaveBeenCalledWith('script-1')
+    expect(result).toHaveBeenCalledWith({ scriptSource: 'console.log("source")' })
+    expect(error).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalledWith(expect.objectContaining({ id: 0 }))
   })
 
-  describe('debuggerPlugin', () => {
-    test('插件具有正确的 id', async () => {
-      const { debuggerPlugin } = await import('./index')
+  test('rejects invalid params with -32602', async () => {
+    const result = vi.fn().mockResolvedValue(undefined)
+    const error = vi.fn().mockResolvedValue(undefined)
 
-      expect(debuggerPlugin.id).toBe('debugger')
-    })
+    await handler('Debugger.getScriptSource')({ data: {}, result, error })
 
-    test('插件使用 network 插件', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      // 直接调用插件函数，使用 Function.prototype.call 绕过类型检查
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      expect(mockUsePlugin).toHaveBeenCalledWith('network')
-    })
-
-    test('插件注册 Debugger.getScriptSource 处理器', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      expect(mockCoreOn).toHaveBeenCalledWith('Debugger.getScriptSource', expect.any(Function))
-    })
-
-    test('插件注册 onConnect 处理器', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      expect(mockCoreOn).toHaveBeenCalledWith('onConnect', expect.any(Function))
-    })
+    expect(error).toHaveBeenCalledWith(CDP_ERROR_CODES.INVALID_PARAMS, 'scriptId must be a string.')
+    expect(result).not.toHaveBeenCalled()
   })
 
-  describe('Debugger.getScriptSource 处理器', () => {
-    test('返回脚本源代码', async () => {
-      const { debuggerPlugin } = await import('./index')
+  test('rejects an unknown lazy script with a server error', async () => {
+    getScriptSource.mockReturnValue(null)
+    const result = vi.fn().mockResolvedValue(undefined)
+    const error = vi.fn().mockResolvedValue(undefined)
 
-      mockGetScriptSource.mockReturnValue('console.log("hello world");')
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      const getScriptSourceHandlers = registeredHandlers.get('Debugger.getScriptSource')
-      expect(getScriptSourceHandlers).toBeDefined()
-
-      getScriptSourceHandlers![0]({
-        data: { scriptId: 'script-123' },
-        id: 'request-id-1'
-      })
-
-      expect(mockGetScriptSource).toHaveBeenCalledWith('script-123')
-      expect(mockDevtoolSend).toHaveBeenCalledWith({
-        id: 'request-id-1',
-        method: 'Debugger.getScriptSourceResponse',
-        result: {
-          scriptSource: 'console.log("hello world");'
-        }
-      })
+    await handler('Debugger.getScriptSource')({
+      data: { scriptId: 'missing' },
+      result,
+      error
     })
 
-    test('脚本不存在时返回 null', async () => {
-      const { debuggerPlugin } = await import('./index')
+    expect(error).toHaveBeenCalledWith(CDP_ERROR_CODES.SERVER_ERROR, 'Unknown script id missing.')
+    expect(result).not.toHaveBeenCalled()
+  })
 
-      mockGetScriptSource.mockReturnValue(null)
+  test('reads the current lazy script list on every frontend connection', () => {
+    const first = {
+      url: 'file:///first.js',
+      scriptLanguage: 'JavaScript',
+      embedderName: 'file:///first.js',
+      scriptId: '1',
+      sourceMapURL: '',
+      hasSourceURL: false
+    }
+    const second = {
+      ...first,
+      url: 'file:///second.js',
+      embedderName: 'file:///second.js',
+      scriptId: '2'
+    }
+    getLocalScriptList.mockReturnValueOnce([first]).mockReturnValueOnce([first, second])
 
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
+    handler('onConnect')({ data: null })
+    handler('onConnect')({ data: null })
 
-      const getScriptSourceHandlers = registeredHandlers.get('Debugger.getScriptSource')
-      getScriptSourceHandlers![0]({
-        data: { scriptId: 'non-existent-script' },
-        id: 'request-id-2'
-      })
-
-      expect(mockDevtoolSend).toHaveBeenCalledWith({
-        id: 'request-id-2',
-        method: 'Debugger.getScriptSourceResponse',
-        result: {
-          scriptSource: null
-        }
-      })
+    expect(getLocalScriptList).toHaveBeenCalledTimes(2)
+    expect(send).toHaveBeenNthCalledWith(1, {
+      method: 'Debugger.scriptParsed',
+      params: first
     })
-
-    test('没有 id 时不发送响应', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      const getScriptSourceHandlers = registeredHandlers.get('Debugger.getScriptSource')
-      getScriptSourceHandlers![0]({
-        data: { scriptId: 'script-123' },
-        id: undefined
-      })
-
-      expect(mockDevtoolSend).not.toHaveBeenCalled()
+    expect(send).toHaveBeenNthCalledWith(3, {
+      method: 'Debugger.scriptParsed',
+      params: second
     })
   })
 
-  describe('onConnect 处理器', () => {
-    test('连接时发送所有已解析的脚本', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      const scriptList = [
-        {
-          url: 'file:///path/to/script1.js',
-          scriptLanguage: 'JavaScript',
-          embedderName: 'file:///path/to/script1.js',
-          scriptId: '1',
-          sourceMapURL: '',
-          hasSourceURL: false
-        },
-        {
-          url: 'file:///path/to/script2.js',
-          scriptLanguage: 'JavaScript',
-          embedderName: 'file:///path/to/script2.js',
-          scriptId: '2',
-          sourceMapURL: 'file:///path/to/script2.js.map',
-          hasSourceURL: true
-        }
-      ]
-
-      mockGetLocalScriptList.mockReturnValue(scriptList)
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      // 触发 onConnect
-      const onConnectHandlers = registeredHandlers.get('onConnect')
-      expect(onConnectHandlers).toBeDefined()
-      onConnectHandlers![0]({ data: null, id: undefined })
-
-      // 验证发送了所有脚本
-      expect(mockDevtoolSend).toHaveBeenCalledWith({
-        method: 'Debugger.scriptParsed',
-        params: scriptList[0]
-      })
-      expect(mockDevtoolSend).toHaveBeenCalledWith({
-        method: 'Debugger.scriptParsed',
-        params: scriptList[1]
-      })
-    })
-
-    test('没有脚本时不发送消息', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      mockGetLocalScriptList.mockReturnValue([])
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      // 触发 onConnect
-      const onConnectHandlers = registeredHandlers.get('onConnect')
-      onConnectHandlers![0]({ data: null, id: undefined })
-
-      // 不应该发送任何消息
-      expect(mockDevtoolSend).not.toHaveBeenCalled()
-    })
-
-    test('发送包含 sourceMapURL 的脚本信息', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      const scriptWithSourceMap = {
-        url: 'file:///path/to/app.js',
-        scriptLanguage: 'JavaScript',
-        embedderName: 'file:///path/to/app.js',
-        scriptId: '100',
-        sourceMapURL: 'data:application/json;base64,eyJ2ZXJzaW9uIjozfQ==',
-        hasSourceURL: true
-      }
-
-      mockGetLocalScriptList.mockReturnValue([scriptWithSourceMap])
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      const onConnectHandlers = registeredHandlers.get('onConnect')
-      onConnectHandlers![0]({ data: null, id: undefined })
-
-      expect(mockDevtoolSend).toHaveBeenCalledWith({
-        method: 'Debugger.scriptParsed',
-        params: expect.objectContaining({
-          sourceMapURL: 'data:application/json;base64,eyJ2ZXJzaW9uIjozfQ==',
-          hasSourceURL: true
-        })
-      })
-    })
-  })
-
-  describe('ScriptSourceData 接口', () => {
-    test('处理器接收正确的数据格式', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      mockGetScriptSource.mockReturnValue('// script content')
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      const getScriptSourceHandlers = registeredHandlers.get('Debugger.getScriptSource')
-
-      // 验证处理器可以正确处理 ScriptSourceData 格式的数据
-      getScriptSourceHandlers![0]({
-        data: { scriptId: 'test-script-id' },
-        id: 'test-request-id'
-      })
-
-      expect(mockGetScriptSource).toHaveBeenCalledWith('test-script-id')
-    })
-  })
-
-  describe('IScriptParsed 接口', () => {
-    test('脚本信息包含所有必要字段', async () => {
-      const { debuggerPlugin } = await import('./index')
-
-      const completeScript = {
-        url: 'file:///complete/script.js',
-        scriptLanguage: 'JavaScript',
-        embedderName: 'file:///complete/script.js',
-        scriptId: '999',
-        sourceMapURL: 'file:///complete/script.js.map',
-        hasSourceURL: true
-      }
-
-      mockGetLocalScriptList.mockReturnValue([completeScript])
-
-      const context = createMockContext()
-      ;(debuggerPlugin as Function)(context)
-
-      const onConnectHandlers = registeredHandlers.get('onConnect')
-      onConnectHandlers![0]({ data: null, id: undefined })
-
-      expect(mockDevtoolSend).toHaveBeenCalledWith({
-        method: 'Debugger.scriptParsed',
-        params: {
-          url: 'file:///complete/script.js',
-          scriptLanguage: 'JavaScript',
-          embedderName: 'file:///complete/script.js',
-          scriptId: '999',
-          sourceMapURL: 'file:///complete/script.js.map',
-          hasSourceURL: true
-        }
-      })
-    })
+  test('does not announce scripts before lazy registration', () => {
+    handler('onConnect')({ data: null })
+    expect(send).not.toHaveBeenCalled()
   })
 })

@@ -1,0 +1,299 @@
+name: Reusable package quality
+
+on:
+  workflow_call:
+    outputs:
+      package_artifact_name:
+        description: Artifact containing the one tested npm tarball
+        value: ${{ jobs.package.outputs.artifact_name }}
+      package_tarball_name:
+        description: Exact npm tarball filename
+        value: ${{ jobs.package.outputs.tarball_name }}
+      package_sha256:
+        description: SHA-256 of the exact npm tarball
+        value: ${{ jobs.package.outputs.sha256 }}
+
+permissions:
+  contents: read
+
+# Matrix reviewed 2026-08-28 against the official Node.js release schedule:
+# https://github.com/nodejs/Release#release-schedule
+# Node 22/24 are LTS and Node 26 is Current. Node 18 (EOL 2025-04-30) and
+# Node 20 (EOL 2026-04-30) remain compatibility lines: Node 20 runs unit and
+# Legacy evidence, while Node 18 is Legacy-only. Every runtime controller below
+# is explicit --
+# unsupported capability combinations are not silently skipped at runtime.
+env:
+  HTTP_PROXY: ''
+  HTTPS_PROXY: ''
+  ALL_PROXY: ''
+  NO_PROXY: 127.0.0.1,localhost
+  NETWORK_DEBUGGER_E2E_ARTIFACT_DIR: packages/network-debugger/test/e2e/artifacts
+
+jobs:
+  unit-supported:
+    name: Unit / Ubuntu / Node ${{ matrix.node }}${{ matrix.lifecycle == 'eol' && ' (EOL compatibility)' || '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 20
+            lifecycle: eol
+          - node: 22
+            lifecycle: supported
+          - node: 24
+            lifecycle: supported
+          - node: 26
+            lifecycle: supported
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter node-network-devtools test:unit
+
+  package:
+    name: Build and npm pack exactly once
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      artifact_name: ${{ steps.pack.outputs.artifact_name }}
+      tarball_name: ${{ steps.pack.outputs.tarball_name }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter node-network-devtools build
+      - name: Create the sole release candidate tarball
+        id: pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_dir="$RUNNER_TEMP/npm-package"
+          mkdir -p "$package_dir"
+          npm pack --pack-destination "$package_dir" ./packages/network-debugger
+          mapfile -t tarballs < <(find "$package_dir" -maxdepth 1 -type f -name '*.tgz' -print)
+          if [[ "${#tarballs[@]}" -ne 1 ]]; then
+            echo "Expected exactly one npm tarball, found ${#tarballs[@]}" >&2
+            exit 1
+          fi
+          tarball_name="$(basename "${tarballs[0]}")"
+          sha256="$(sha256sum "${tarballs[0]}" | cut -d ' ' -f 1)"
+          artifact_name="node-network-devtools-tgz-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "tarball_name=$tarball_name" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+      - name: Upload the exact release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pack.outputs.artifact_name }}
+          path: ${{ runner.temp }}/npm-package/*.tgz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  pack-consumer:
+    name: Packed CJS and ESM consumers / Node 24
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Resolve public entries from an installed tarball
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+        run: node --test packages/network-debugger/test/e2e/pack/pack-consumer.test.mjs
+
+  legacy-runtime:
+    name: Legacy runtime / Ubuntu / Node ${{ matrix.node }}${{ matrix.lifecycle == 'eol' && ' (EOL compatibility)' || '' }}
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 18.18.0
+            lifecycle: eol
+          - node: 20
+            lifecycle: eol
+          - node: 22
+            lifecycle: supported
+          - node: 24
+            lifecycle: supported
+          - node: 26
+            lifecycle: supported
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      # This controller intentionally uses node:test + npm only. In particular,
+      # Node 18/20 compatibility never loads the current Vitest toolchain.
+      - name: Exercise a real packed Legacy CDP lifecycle
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+        run: node --test packages/network-debugger/test/e2e/pack/legacy-runtime.test.mjs
+
+  native-runtime:
+    name: Native packed runtime / Ubuntu / Node ${{ matrix.node }}
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Exercise a real packed Native CDP lifecycle
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+        run: node --test packages/network-debugger/test/e2e/pack/native-runtime.test.mjs
+
+  ubuntu-protocol:
+    name: Mandatory Ubuntu Native, Legacy, and CLI protocol / Node 24
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Hydrate repository tests from the exact tarball
+        shell: bash
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+        run: |
+          set -euo pipefail
+          tarball="$(find "$NND_PACK_DIR" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          unpacked="$RUNNER_TEMP/npm-unpacked"
+          mkdir -p "$unpacked"
+          tar -xzf "$tarball" -C "$unpacked"
+          rm -rf packages/network-debugger/dist
+          cp -R "$unpacked/package/dist" packages/network-debugger/dist
+      - run: pnpm --filter node-network-devtools test:e2e:native
+      - run: pnpm --filter node-network-devtools test:e2e:legacy
+      - run: pnpm --filter node-network-devtools test:e2e:enhancements
+      - run: pnpm --filter node-network-devtools test:e2e:cli
+      - name: Upload Native, Legacy, and CLI protocol diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-legacy-cli-protocol-node-24
+          path: packages/network-debugger/test/e2e/artifacts
+          if-no-files-found: ignore
+
+  adapter-os-smoke:
+    name: 20-round adapter smoke / ${{ matrix.os }} / Node 24
+    needs: package
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Run Native and Legacy 20 times in one controller process
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+          NND_OS_SMOKE_ROUNDS: 20
+          HTTP_PROXY: ''
+          HTTPS_PROXY: ''
+          ALL_PROXY: ''
+          NO_PROXY: 127.0.0.1,localhost
+        run: >-
+          node --experimental-network-inspection --test --test-concurrency=1
+          packages/network-debugger/test/e2e/os-smoke/adapter-smoke.test.mjs
+
+  frontend:
+    name: Official frontend / Ubuntu / Node 24 / Native and Legacy
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.package.outputs.artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Hydrate repository tests from the exact tarball
+        shell: bash
+        env:
+          NND_PACK_DIR: ${{ runner.temp }}/npm-package
+        run: |
+          set -euo pipefail
+          tarball="$(find "$NND_PACK_DIR" -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          unpacked="$RUNNER_TEMP/npm-unpacked"
+          mkdir -p "$unpacked"
+          tar -xzf "$tarball" -C "$unpacked"
+          rm -rf packages/network-debugger/dist
+          cp -R "$unpacked/package/dist" packages/network-debugger/dist
+      - name: Install the lockfile-pinned Chromium
+        run: pnpm --filter node-network-devtools exec playwright install --with-deps chromium
+      - run: pnpm --filter node-network-devtools test:e2e:frontend
+      - name: Upload frontend diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-frontend-node-24
+          path: packages/network-debugger/test/e2e/artifacts
+          if-no-files-found: ignore

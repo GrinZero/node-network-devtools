@@ -1,128 +1,118 @@
-# Options
+# Configuration options
 
-## RegisterOptions
+The v2 API separates backend selection, Inspector target settings, frontend
+opening, Legacy hooks, and recording.
 
-The `RegisterOptions` interface is used to configure the registration options for the network debugger. Below are detailed descriptions of each option and their default values.
-
-### Example
-
-Here is an example of using `RegisterOptions`:
-
-```typescript
-import { RegisterOptions, register } from 'node-network-devtools'
+```ts
+import { register, type RegisterOptions } from 'node-network-devtools'
 
 const options: RegisterOptions = {
-  port: 5270,
-  serverPort: 5271,
-  autoOpenDevtool: true,
-  intercept: {
-    fetch: true,
-    normal: true
+  mode: 'auto',
+  requiredCapabilities: ['responseBody'],
+  inspector: { host: '127.0.0.1', port: 0 },
+  devtools: { open: false },
+  session: { directory: '.nnd/sessions/local', har: true },
+  legacy: {
+    serverPort: 0,
+    intercept: { normal: true, fetch: true, undici: { fetch: false } }
   }
 }
 
-// Use options to register the network debugger
-register(options)
+const registration = register(options)
+await registration.ready
+await registration.dispose()
 ```
 
-### port
+## `mode`
 
-- **Description**: Main process port
-- **Default value**: `5270`
+- `auto` (default): prefer a proven Native implementation and expose a
+  structured reason when Legacy is selected.
+- `native`: require Node's experimental Network Inspector and every requested
+  capability; never fall back.
+- `legacy`: install project capture hooks and use the project CDP target.
 
-### serverPort
+## `requiredCapabilities`
 
-- **Description**: CDP server port for Devtool
-- **Link**: [devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort}](devtools://devtools/bundled/inspector.html?ws=127.0.0.1:${serverPort})
-- **Default value**: `5271`
+An array containing any of `http`, `https`, `fetch`, `http2`, `responseBody`,
+`requestBody`, `websocketLifecycle`, `websocketFrames`, `sseMessages`, or
+`initiator`. Selection fails or falls back if a backend does not provide every
+required value.
 
-### autoOpenDevtool
+## `inspector`
 
-- **Description**: Whether to automatically open Devtool
-- **Default value**: `true`
+- `host`: Inspector bind host; defaults to `127.0.0.1`.
+- `port`: Inspector port; defaults to `0` for OS assignment.
 
-### intercept
+## `devtools`
 
-- **Description**: Options for intercepting different types of requests.
-  If a property is set to `false`, that specific type of request will not be intercepted.
-  By default, all are intercepted if not explicitly set.
+- `open`: whether library registration explicitly opens the returned target;
+  defaults to `false`.
 
-#### intercept.fetch
+The backend never owns or kills the resulting browser process.
 
-- **Description**: Whether to intercept `fetch` requests.
-- **Default value**: `true`
+## `session`
 
-#### intercept.normal
+- `directory`: exact output directory for `manifest.json`, `events.ndjson`, and
+  `bodies/`. It must not already contain Session artifacts.
+- `bodyCommandTimeoutMs`: optional positive timeout for each
+  `Network.getResponseBody` command.
+- `har`: `true` writes `session.har` in the Session directory during disposal;
+  a string writes to that path; false/omitted disables automatic export.
 
-- **Description**: Whether to intercept `http/https` requests.
-- **Default value**: `true`
+The recorder closes before the backend so outstanding body commands can finish.
 
-#### intercept.undici
+## `legacy`
 
-- **Description**: Options for intercepting `undici` requests. Set to `false` to disable all `undici` interception. Otherwise, configure specific `undici` interception options.
-- **Default value**: `false`
-- **Options**:
-  - `fetch`: Whether to intercept `undici`'s `fetch` requests. Defaults to `false`.
-  - `normal`: Whether to intercept `undici`'s normal requests. Defaults to `false`.
+### `serverPort`
 
-## ConnectOptions
+Legacy CDP discovery/WebSocket target port. It defaults to `0`. The application
+bridge no longer uses a TCP port.
 
-The `ConnectOptions` interface configures options for connecting to the network debugger.
+### `intercept`
 
-### port
+- `normal`: intercept `http.request/get` and `https.request/get`; default true.
+- `fetch`: intercept global Fetch; default true.
+- `undici.fetch`: opt into interception of separately installed Undici Fetch;
+  default false. `undici@^6` is a package peer so this hook observes the
+  application's module instance; install it explicitly when peer auto-install
+  is disabled.
 
-- **Description**: Main process port
-- **Default value**: `5270`
+Disabled transports are reported as unavailable capabilities for that Legacy
+session.
 
-## UnregisterOptions
+### `mock`
 
-The `UnregisterOptions` interface configures options for unregistering the network debugger.
+An ordered array of Legacy-only request/response rules:
 
-### port
+```ts
+{
+  id: 'fixture',
+  match: {
+    url: 'https://api.example.test/*', // exact or `*` glob
+    method: 'POST',
+    headers: { 'x-test-mode': 'mock' }
+  },
+  response: {
+    status: 201,
+    statusText: 'Created',
+    headers: { 'content-type': 'application/json' },
+    body: '{"mocked":true}',
+    // bodyBase64: 'AAEC/w==', // binary alternative
+    delayMs: 10
+  }
+}
+```
 
-- **Description**: Main process port
-- **Default value**: `5270`
+Auto selects Legacy when rules exist. Forced Native fails synchronously with
+`NND_NATIVE_MOCK_CONFLICT`.
 
-## SetRequestInterceptorOptions
+## Deprecated v1 fields
 
-The `SetRequestInterceptorOptions` interface configures options for setting a request interceptor.
+- `adapter` → `mode`
+- `requiredFeatures` → `requiredCapabilities`
+- `autoOpenDevtool` → `devtools.open`
+- top-level `serverPort` → `legacy.serverPort`
+- top-level `intercept` → `legacy.intercept`
+- `port` → remove; child IPC replaced the old 5270 WebSocket bridge
 
-### port
-
-- **Description**: Main process port
-- **Default value**: `5270`
-
-### request
-
-- **Description**: A function to intercept and modify outgoing requests.
-
-## SetResponseInterceptorOptions
-
-The `SetResponseInterceptorOptions` interface configures options for setting a response interceptor.
-
-### port
-
-- **Description**: Main process port
-- **Default value**: `5270`
-
-### response
-
-- **Description**: A function to intercept and modify incoming responses.
-
-## RemoveRequestInterceptorOptions
-
-The `RemoveRequestInterceptorOptions` interface configures options for removing a request interceptor.
-
-### port
-
-- **Description**: Main process port
-- **Default value**: `5270`
-
-## RemoveResponseInterceptorOptions
-
-The `RemoveResponseInterceptorOptions` interface configures options for removing a response interceptor.
-
-### port
-
-- **Description**: Main process port
-- **Default value**: `5270`
+Compatibility fields still work with diagnostics during the v2 migration.

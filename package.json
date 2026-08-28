@@ -3,6 +3,13 @@
   "private": true,
   "scripts": {
     "build": "turbo build",
+    "test": "pnpm --filter node-network-devtools test",
+    "test:e2e:native": "pnpm --filter node-network-devtools test:e2e:native",
+    "test:e2e:legacy": "pnpm --filter node-network-devtools test:e2e:legacy",
+    "test:e2e:enhancements": "pnpm --filter node-network-devtools test:e2e:enhancements",
+    "test:e2e:cli": "pnpm --filter node-network-devtools test:e2e:cli",
+    "test:e2e:frontend": "pnpm --filter node-network-devtools test:e2e:frontend",
+    "quality": "pnpm --filter node-network-devtools test:ci",
     "dev": "turbo dev",
     "lint": "turbo lint",
     "start": "turbo start",
@@ -26,6 +33,6 @@
   },
   "packageManager": "pnpm@9.12.2",
   "engines": {
-    "node": ">=18"
+    "node": ">=18.18"
   }
 }

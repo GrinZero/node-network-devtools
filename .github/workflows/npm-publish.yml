@@ -4,20 +4,58 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
 jobs:
+  quality:
+    name: Rebuild once and run the reusable release gate
+    uses: ./.github/workflows/reusable-quality.yml
+    permissions:
+      contents: read
+
   publish:
+    name: Publish the exact tested tarball
+    needs: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      # npm trusted publishing requires npm >=11.5.1 and Node >=22.14. The
+      # official configuration is OIDC-first; NPM_TOKEN remains a migration
+      # fallback but cannot bypass the reusable quality dependency above.
+      # https://docs.npmjs.com/trusted-publishers/
+      - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          registry-url: 'https://registry.npmjs.org/'
-      - run: npm i -g pnpm@9.12.2
-      - run: pnpm i
-      - run: pnpm build --filter=node-network-devtools
-      - run: |
-          cd packages/network-debugger
-          npm publish --access public
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+      - run: npm install --global npm@11
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.quality.outputs.package_artifact_name }}
+          path: ${{ runner.temp }}/npm-package
+      - name: Verify release candidate identity
+        shell: bash
         env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+          EXPECTED_TARBALL: ${{ needs.quality.outputs.package_tarball_name }}
+          EXPECTED_SHA256: ${{ needs.quality.outputs.package_sha256 }}
+          EXPECTED_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tarball="$RUNNER_TEMP/npm-package/$EXPECTED_TARBALL"
+          test -f "$tarball"
+          echo "$EXPECTED_SHA256  $tarball" | sha256sum --check --strict
+          package_version="$(tar -xOf "$tarball" package/package.json | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
+          test "${EXPECTED_TAG#v}" = "$package_version"
+      - name: Publish with OIDC provenance (or NPM_TOKEN fallback)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TARBALL: ${{ runner.temp }}/npm-package/${{ needs.quality.outputs.package_tarball_name }}
+        run: npm publish "$TARBALL" --access public --provenance

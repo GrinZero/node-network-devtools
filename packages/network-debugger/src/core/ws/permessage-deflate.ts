@@ -272,32 +272,43 @@ export class PerMessageDeflate {
       this._inflate.on('data', inflateOnData)
     }
 
-    ;(this._inflate as any)[kCallback] = callback
+    const inflate = this._inflate
+    const state = inflate as any
+    state[kCallback] = callback
 
-    this._inflate.write(data)
-    if (fin) this._inflate.write(TRAILER)
+    inflate.write(data)
+    if (fin) inflate.write(TRAILER)
 
-    this._inflate.flush(() => {
-      const err = (this._inflate as any)[kError]
+    inflate.flush(() => {
+      // An inflate error calls the write callback and clears `_inflate`.
+      if (this._inflate !== inflate) return
+      const err = state[kError]
 
       if (err) {
-        this._inflate!.close()
+        inflate.close()
         this._inflate = null
+        state[kCallback] = undefined
         callback(err)
         return
       }
 
-      const data = bufferUtil.concat(
-        (this._inflate as any)[kBuffers],
-        (this._inflate as any)[kTotalLength]
-      )
+      const result = bufferUtil.concat(state[kBuffers], state[kTotalLength])
+      state[kCallback] = undefined
 
-      if (this._maxPayload < 1 || data.length <= this._maxPayload) {
-        callback(null, data)
-        return
+      if (state._readableState?.endEmitted) {
+        inflate.close()
+        this._inflate = null
+      } else {
+        state[kTotalLength] = 0
+        state[kBuffers] = []
+        if (fin && this.params?.[`${endpoint}_no_context_takeover`]) inflate.reset()
       }
 
-      callback(new RangeError('Max payload size exceeded'), null)
+      if (this._maxPayload > 0 && result.length > this._maxPayload) {
+        callback(new RangeError('Max payload size exceeded'), null)
+      } else {
+        callback(null, result)
+      }
     })
   }
 
@@ -319,48 +330,66 @@ export class PerMessageDeflate {
         ...this._options.zlibDeflateOptions,
         windowBits
       })
+      ;(this._deflate as any)[kPerMessageDeflate] = this
       ;(this._deflate as any)[kTotalLength] = 0
       ;(this._deflate as any)[kBuffers] = []
       this._deflate.on('error', deflateOnError)
       this._deflate.on('data', deflateOnData)
     }
 
-    ;(this._deflate as any)[kCallback] = callback
+    const deflate = this._deflate
+    const state = deflate as any
+    state[kCallback] = callback
 
-    this._deflate.write(data)
-    if (fin)
-      this._deflate.flush(zlib.Z_SYNC_FLUSH, () => {
-        const data = bufferUtil.concat(
-          (this._deflate as any)[kBuffers],
-          (this._deflate as any)[kTotalLength]
-        )
+    deflate.write(data)
+    deflate.flush(zlib.constants.Z_SYNC_FLUSH, () => {
+      // Cleanup or a zlib error can close the stream while work is pending.
+      if (this._deflate !== deflate) return
+      let result = bufferUtil.concat(state[kBuffers], state[kTotalLength])
+      if (fin) result = result.subarray(0, Math.max(0, result.length - TRAILER.length))
 
-        if (this._maxPayload < 1 || data.length <= this._maxPayload) {
-          callback(null, data)
-          return
-        }
+      state[kCallback] = undefined
+      state[kTotalLength] = 0
+      state[kBuffers] = []
+      if (fin && this.params?.[`${endpoint}_no_context_takeover`]) deflate.reset()
 
+      if (this._maxPayload > 0 && result.length > this._maxPayload) {
         callback(new RangeError('Max payload size exceeded'), null)
-      })
+      } else {
+        callback(null, result)
+      }
+    })
   }
 }
 
-function inflateOnError(this: PerMessageDeflate, err: Error): void {
-  this[kPerMessageDeflate]![kCallback]!(err)
+function inflateOnError(this: zlib.InflateRaw, err: Error): void {
+  const state = this as any
+  const extension = state[kPerMessageDeflate] as PerMessageDeflate | undefined
+  if (extension) (extension as any)._inflate = null
+  const callback = state[kCallback] as ((error: Error) => void) | undefined
+  state[kCallback] = undefined
+  if (callback) callback(err)
 }
 
-function inflateOnData(this: PerMessageDeflate, chunk: Buffer): void {
-  this[kTotalLength]! += chunk.length
-  this[kBuffers]!.push(chunk)
+function inflateOnData(this: zlib.InflateRaw, chunk: Buffer): void {
+  const state = this as any
+  state[kTotalLength] += chunk.length
+  state[kBuffers].push(chunk)
 }
 
-function deflateOnError(this: PerMessageDeflate, err: Error): void {
-  this[kPerMessageDeflate]![kCallback]!(err)
+function deflateOnError(this: zlib.DeflateRaw, err: Error): void {
+  const state = this as any
+  const extension = state[kPerMessageDeflate] as PerMessageDeflate | undefined
+  if (extension) (extension as any)._deflate = null
+  const callback = state[kCallback] as ((error: Error) => void) | undefined
+  state[kCallback] = undefined
+  if (callback) callback(err)
 }
 
-function deflateOnData(this: PerMessageDeflate, chunk: Buffer): void {
-  this[kTotalLength]! += chunk.length
-  this[kBuffers]!.push(chunk)
+function deflateOnData(this: zlib.DeflateRaw, chunk: Buffer): void {
+  const state = this as any
+  state[kTotalLength] += chunk.length
+  state[kBuffers].push(chunk)
 }
 
 export default PerMessageDeflate

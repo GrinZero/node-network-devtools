@@ -308,9 +308,9 @@ checkbox above and additionally prove:
       `Network.*` event used as product evidence.
 - [x] Both protocol suites pass 50 consecutive runs without a failure or leaked
       process.
-- [ ] Windows and macOS smoke suites pass 20 consecutive runs.
+- [x] Windows and macOS smoke suites pass 20 consecutive runs.
 - [x] Frontend smoke passes 10 consecutive runs.
-- [ ] Pull requests and publishing are blocked by the verified quality workflow.
+- [x] Pull requests and publishing are blocked by the verified quality workflow.
 - [x] Documentation describes actual current capabilities, not intended ones.
 - [x] Every planned artifact exists in the packed npm output when required.
 
@@ -391,7 +391,21 @@ checkbox above and additionally prove:
   remained. The current exact `node-network-devtools-2.0.0.tgz` installs in CJS
   and ESM consumers, passes packed Native/Legacy runtime tests plus publish
   dry-run, contains 190 files including LICENSE, and has SHA-256
-  `df5e666727df06563e20194d0f777c2b17cb18942c28eba4be22a9316e8f9df0`.
-  Windows 20-round evidence and the active required `Quality Gate` repository
-  ruleset remain deliberately unchecked until the pushed branch succeeds in
-  GitHub Actions.
+  `dbd24df4d1ff4dda6ac545df0ef95c1287f0cace81d1e26fca08caa5667fce84`.
+- 2026-08-28: Final remote audit passed at commit
+  `231bcae02a9f05763a24c01d064127a71301895a`. GitHub Actions run
+  [33147572570](https://github.com/GrinZero/node-network-devtools/actions/runs/33147572570)
+  completed all 18 reusable-workflow jobs plus the top-level `Quality Gate`
+  successfully. The exact uploaded artifact
+  `node-network-devtools-tgz-33147572570-1` contains 190 files and has the same
+  SHA-256 recorded above. Its isolated packed-package controller passed 20
+  Native and 20 Legacy rounds on both `windows-latest` and `macos-latest`, with
+  discovery, target, disposal, and closed-endpoint assertions preserved. Active
+  repository ruleset
+  [21711512](https://github.com/GrinZero/node-network-devtools/rules/21711512)
+  targets `refs/heads/main`, strictly requires `Quality Gate` from GitHub Actions
+  integration `15368`, and has no bypass actors (`current_user_can_bypass` is
+  `never`). The release workflow cannot reach `publish` until the same reusable
+  quality workflow succeeds; it then downloads that workflow's sole artifact and
+  verifies its SHA-256 and release tag before publishing. No real npm publish was
+  performed as part of this implementation.

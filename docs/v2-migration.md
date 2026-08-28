@@ -79,8 +79,12 @@ Notable verified boundaries:
 - Native network inspection first appears behind the experimental flag in Node
   20.18 and 22.6.
 - Auto's proven Native baseline is Node 24.7 and newer.
-- Native HTTP/2 capture requires the later runtime implementations (for example,
-  Node 24.8+).
+- Native HTTP/2 is explicitly allowlisted only on Node 22.20+ within the 22.x
+  line. A non-empty h2c lifecycle passed on Node 22.22.3, but consuming a
+  non-empty response with `setEncoding()` crashes the upstream experimental
+  Inspector on Node 24.16.0 and 26.8.1 with `Missing dataLength`. Other and
+  future majors remain false until independently verified; Legacy HTTP/2 is
+  also unsupported.
 - Node 22.22 can retrieve Native HTTP response bodies, but Fetch
   `Network.getResponseBody` returns an empty body in the package E2E. Because the
   public `responseBody` capability spans transports, v2 conservatively reports

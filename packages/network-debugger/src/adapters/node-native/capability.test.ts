@@ -79,7 +79,7 @@ describe('native capability detection', () => {
       http: true,
       https: true,
       fetch: true,
-      http2: true,
+      http2: false,
       responseBody: true,
       requestBody: false,
       websocketLifecycle: true,
@@ -87,6 +87,20 @@ describe('native capability detection', () => {
       sseMessages: false,
       initiator: true
     })
+  })
+
+  test.each([
+    ['22.19.0', false],
+    ['22.20.0', true],
+    ['22.22.3', true],
+    ['23.11.1', false],
+    ['24.16.0', false],
+    ['25.7.0', false],
+    ['26.8.1', false],
+    ['99.0.0', false]
+  ])('uses the explicit Native HTTP/2 allowlist for Node %s', (text, expected) => {
+    const capabilities = getNativeCapabilities(parseNodeVersion(text), lifecycleNetwork())
+    expect(capabilities.http2).toBe(expected)
   })
 
   test('does not infer HTTP request-body support from dataSent', () => {

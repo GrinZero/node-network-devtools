@@ -50,18 +50,23 @@ unregister()`。
 
 ## 能力概览
 
-| 能力                          | Native           | Legacy |
-| ----------------------------- | ---------------- | ------ |
-| HTTP / HTTPS / Fetch 生命周期 | 取决于 Node 版本 | 支持   |
-| HTTP/2                        | 取决于 Node 版本 | 不支持 |
-| 响应 Body                     | 取决于 Node 版本 | 支持   |
-| 请求 Body                     | 不声明支持       | 支持   |
-| WebSocket 生命周期 / 帧       | 仅生命周期       | 支持   |
-| SSE 消息                      | 不支持           | 支持   |
-| 请求/响应 Mock                | 不支持           | 支持   |
+| 能力                          | Native                 | Legacy |
+| ----------------------------- | ---------------------- | ------ |
+| HTTP / HTTPS / Fetch 生命周期 | 取决于 Node 版本       | 支持   |
+| HTTP/2                        | 仅 Node 22.20+（22.x） | 不支持 |
+| 响应 Body                     | 取决于 Node 版本       | 支持   |
+| 请求 Body                     | 不声明支持             | 支持   |
+| WebSocket 生命周期 / 帧       | 仅生命周期             | 支持   |
+| SSE 消息                      | 不支持                 | 支持   |
+| 请求/响应 Mock                | 不支持                 | 支持   |
 
 Native 能力根据实际 Node 版本和 Inspector 方法探测。强制 Native 时缺少能力会直接
 失败；Auto 改用 Legacy 时会返回结构化原因，不会静默降级。
+
+Native HTTP/2 采用保守白名单：仅 Node 22.20+ 的 22.x 版本声明支持。Node 22.22.3
+已通过非空 h2c 生命周期实测；Node 24.16.0 与 26.8.1 在通过 `setEncoding()` 消费
+非空响应时，会触发上游实验性 Inspector 的 `Missing dataLength` 崩溃。其他及未来
+大版本在独立验证前一律报告为不支持；Legacy 也不捕获 HTTP/2。
 
 ## Session、HAR 与 Replay
 

@@ -77,18 +77,18 @@ registration fails with `NND_ALREADY_REGISTERED`.
 
 ## Backend capabilities
 
-| Capability             | Native            | Legacy |
-| ---------------------- | ----------------- | ------ |
-| HTTP / HTTPS lifecycle | Yes               | Yes    |
-| Fetch lifecycle        | Runtime-dependent | Yes    |
-| HTTP/2                 | Runtime-dependent | No     |
-| Response bodies        | Runtime-dependent | Yes    |
-| Request bodies         | Not advertised    | Yes    |
-| WebSocket lifecycle    | Runtime-dependent | Yes    |
-| WebSocket frames       | No                | Yes    |
-| SSE messages           | No                | Yes    |
-| Initiator stack        | Yes               | Yes    |
-| Request/response Mock  | No                | Yes    |
+| Capability             | Native                  | Legacy |
+| ---------------------- | ----------------------- | ------ |
+| HTTP / HTTPS lifecycle | Yes                     | Yes    |
+| Fetch lifecycle        | Runtime-dependent       | Yes    |
+| HTTP/2                 | Node 22.20+ (22.x only) | No     |
+| Response bodies        | Runtime-dependent       | Yes    |
+| Request bodies         | Not advertised          | Yes    |
+| WebSocket lifecycle    | Runtime-dependent       | Yes    |
+| WebSocket frames       | No                      | Yes    |
+| SSE messages           | No                      | Yes    |
+| Initiator stack        | Yes                     | Yes    |
+| Request/response Mock  | No                      | Yes    |
 
 Native capabilities are probed from the running Node version and Inspector API;
 the package does not pretend missing upstream features exist. Forced Native
@@ -99,6 +99,13 @@ Node 22 can expose Native HTTP response bodies while returning an empty Fetch
 body. Because `responseBody` covers all advertised transports, the package
 conservatively reports that capability as false on Node 22 and enables it only
 on the verified Node 24+ baseline.
+
+Native HTTP/2 is conservatively allowlisted only for Node 22.20+ releases in
+the 22.x line. A non-empty h2c lifecycle passed on Node 22.22.3, while consuming
+a non-empty response with `setEncoding()` crashes the upstream experimental
+Inspector on Node 24.16.0 and 26.8.1 with `Missing dataLength`. Other and future
+majors remain reported as unsupported until independently verified. Legacy does
+not capture HTTP/2.
 
 Legacy interception can be narrowed:
 

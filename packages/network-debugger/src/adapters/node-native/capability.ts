@@ -96,9 +96,11 @@ function supportsNativeFetch(version: NodeVersion | null) {
 
 function supportsNativeHttp2(version: NodeVersion | null) {
   if (!version) return false
-  if (version.major === 22) return atLeast(version, 22, 20)
-  if (version.major === 24) return atLeast(version, 24, 8)
-  return version.major >= 25
+
+  // Keep this as an explicit allowlist. A non-empty h2c lifecycle is verified on
+  // Node 22.20+, while newer majors have regressed in the experimental Inspector.
+  // Future majors must be verified independently instead of inheriting support.
+  return version.major === 22 && atLeast(version, 22, 20)
 }
 
 /**

@@ -53,19 +53,26 @@ register(); unregister()`.
 
 ## Capability summary
 
-| Capability                     | Native            | Legacy |
-| ------------------------------ | ----------------- | ------ |
-| HTTP / HTTPS / Fetch lifecycle | Runtime-dependent | Yes    |
-| HTTP/2                         | Runtime-dependent | No     |
-| Response bodies                | Runtime-dependent | Yes    |
-| Request bodies                 | Not advertised    | Yes    |
-| WebSocket lifecycle / frames   | Lifecycle only    | Yes    |
-| SSE messages                   | No                | Yes    |
-| Request/response Mock          | No                | Yes    |
+| Capability                     | Native                  | Legacy |
+| ------------------------------ | ----------------------- | ------ |
+| HTTP / HTTPS / Fetch lifecycle | Runtime-dependent       | Yes    |
+| HTTP/2                         | Node 22.20+ (22.x only) | No     |
+| Response bodies                | Runtime-dependent       | Yes    |
+| Request bodies                 | Not advertised          | Yes    |
+| WebSocket lifecycle / frames   | Lifecycle only          | Yes    |
+| SSE messages                   | No                      | Yes    |
+| Request/response Mock          | No                      | Yes    |
 
 Native values are probed from the running Node version and Inspector methods.
 Forced Native fails if requirements are missing; Auto returns a structured
 reason whenever it uses Legacy.
+
+Native HTTP/2 is conservatively allowlisted only for Node 22.20+ releases in
+the 22.x line. A non-empty h2c lifecycle passed on Node 22.22.3, while consuming
+a non-empty response with `setEncoding()` crashes the upstream experimental
+Inspector on Node 24.16.0 and 26.8.1 with `Missing dataLength`. Other and future
+majors remain reported as unsupported until independently verified; Legacy does
+not capture HTTP/2.
 
 ## Session workflow
 

@@ -535,10 +535,16 @@ test(
         (params) => params.requestId === requestId
       )
       const result = await scenarioPromise
+      const requestHeaders = willSend.message.params.request.headers
+      const versionHeader = Object.entries(requestHeaders).find(
+        ([name]) => name.toLowerCase() === 'sec-websocket-version'
+      )?.[1]
       const extensionHeader = Object.entries(handshake.message.params.response.headers).find(
         ([name]) => name.toLowerCase() === 'sec-websocket-extensions'
       )?.[1]
 
+      assert.equal(versionHeader, '13')
+      assert.ok(Object.values(requestHeaders).every((value) => typeof value === 'string'))
       assert.equal(handshake.message.params.response.status, 101)
       assert.match(String(extensionHeader), /permessage-deflate/)
       assert.ok(created.sequence < willSend.sequence)

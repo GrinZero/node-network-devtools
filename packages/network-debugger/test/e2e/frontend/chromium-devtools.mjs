@@ -7,6 +7,33 @@ import { join } from 'node:path'
 import { chromium } from '@playwright/test'
 
 const DEFAULT_TIMEOUT_MS = 10_000
+const DIAGNOSTIC_TIMEOUT_MS = 3_000
+const LOOPBACK_ARGUMENTS = [
+  '--no-proxy-server',
+  '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'
+]
+const KEYCHAIN_ARGUMENTS = ['--password-store=basic', '--use-mock-keychain']
+
+async function withinTimeout(operation, label, timeoutMs = DIAGNOSTIC_TIMEOUT_MS) {
+  let timer
+  try {
+    return await Promise.race([
+      operation,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(label + ' timed out after ' + timeoutMs + 'ms')),
+          timeoutMs
+        )
+      })
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function childIsRunning(child) {
+  return Boolean(child?.pid && child.exitCode === null && child.signalCode === null)
+}
 
 // Node's native Network backend does not implement these optional Chromium
 // commands yet. The official frontend reports them through console.error while
@@ -21,7 +48,7 @@ const EXPECTED_PROTOCOL_ERRORS = {
 }
 
 function waitForExit(child, timeoutMs = 5_000) {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
+  if (!childIsRunning(child)) return Promise.resolve()
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       cleanup()
@@ -36,7 +63,7 @@ function waitForExit(child, timeoutMs = 5_000) {
       child.off('exit', onExit)
     }
     child.once('exit', onExit)
-    if (child.exitCode !== null || child.signalCode !== null) onExit()
+    if (!childIsRunning(child)) onExit()
   })
 }
 
@@ -78,6 +105,9 @@ function waitForBrowserWebSocket(child, output, timeoutMs = DEFAULT_TIMEOUT_MS) 
     child.stderr.on('data', onData)
     child.once('exit', onExit)
     child.once('error', onError)
+    if (child.exitCode !== null || child.signalCode !== null) {
+      onExit(child.exitCode, child.signalCode)
+    }
   })
 }
 
@@ -93,12 +123,17 @@ function toNdjson(values) {
 }
 
 export class ChromiumDevToolsFrontend {
-  constructor(inspectorUrl, { backend = 'native' } = {}) {
+  constructor(
+    inspectorUrl,
+    { backend = 'native', executablePath = chromium.executablePath(), headless = true } = {}
+  ) {
     if (!Object.hasOwn(EXPECTED_PROTOCOL_ERRORS, backend)) {
       throw new Error(`Unknown DevTools frontend backend: ${backend}`)
     }
     this.inspectorUrl = inspectorUrl
     this.backend = backend
+    this.executablePath = executablePath
+    this.headless = headless
     this.consoleMessages = []
     this.pageErrors = []
     this.crashes = []
@@ -106,13 +141,29 @@ export class ChromiumDevToolsFrontend {
     this.browserOutput = { stdout: '', stderr: '' }
     this.traceStarted = false
     this.traceStopped = false
-    this.closed = false
   }
 
   async start() {
+    try {
+      await this.startBrowser()
+      await this.openFrontend()
+      return this
+    } catch (error) {
+      try {
+        await this.close()
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], 'Failed to start the Chromium frontend', {
+          cause: error
+        })
+      }
+      throw error
+    }
+  }
+
+  async startBrowser() {
     this.userDataDirectory = await mkdtemp(join(tmpdir(), 'node-network-devtools-chromium-'))
     const browserProcess = spawn(
-      chromium.executablePath(),
+      this.executablePath,
       [
         '--headless=new',
         '--remote-debugging-port=0',
@@ -120,7 +171,8 @@ export class ChromiumDevToolsFrontend {
         '--no-first-run',
         '--no-default-browser-check',
         '--no-sandbox',
-        '--no-proxy-server',
+        ...LOOPBACK_ARGUMENTS,
+        ...KEYCHAIN_ARGUMENTS,
         '--disable-background-networking',
         '--disable-component-update',
         '--disable-default-apps',
@@ -128,12 +180,16 @@ export class ChromiumDevToolsFrontend {
         '--disable-extensions',
         '--disable-sync',
         '--metrics-recording-only',
-        '--mute-audio',
-        '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1'
+        '--mute-audio'
       ],
       { stdio: ['ignore', 'pipe', 'pipe'] }
     )
     this.browserProcess = browserProcess
+    // Playwright can terminate a timed-out worker before its 'finally' block.
+    this.stopAssetServerOnExit = () => {
+      if (childIsRunning(browserProcess)) browserProcess.kill('SIGKILL')
+    }
+    process.once('exit', this.stopAssetServerOnExit)
     browserProcess.stdout.setEncoding('utf8')
     browserProcess.stderr.setEncoding('utf8')
     browserProcess.stdout.on('data', (chunk) => {
@@ -144,14 +200,34 @@ export class ChromiumDevToolsFrontend {
     })
 
     this.browserWebSocketUrl = await waitForBrowserWebSocket(browserProcess, this.browserOutput)
-    const browser = await chromium.connectOverCDP(this.browserWebSocketUrl)
-    this.browser = browser
-    this.browserVersion = browser.version()
+    // On macOS, navigating via the asset server's CDP default context can
+    // hang. A Playwright-managed session uses its own temporary browser
+    // context while still loading the identical bundled frontend locally.
+    const separateSession = process.platform === 'darwin' || !this.headless
+    this.browser = separateSession
+      ? await chromium.launch({
+          executablePath: this.executablePath,
+          headless: this.headless,
+          args: LOOPBACK_ARGUMENTS,
+          timeout: DEFAULT_TIMEOUT_MS
+        })
+      : await chromium.connectOverCDP(this.browserWebSocketUrl, { timeout: DEFAULT_TIMEOUT_MS })
+    this.browserVersion = this.browser.version()
+    this.context = separateSession
+      ? await withinTimeout(
+          this.browser.newContext({ viewport: { width: 1440, height: 940 } }),
+          'Creating the Chromium context'
+        )
+      : this.browser.contexts()[0]
+    if (!this.context) throw new Error('Chromium did not expose its default browser context')
+  }
 
-    const [context] = browser.contexts()
-    if (!context) throw new Error('Chromium did not expose its default browser context')
-    this.context = context
-    await context.tracing.start({ screenshots: true, snapshots: true, sources: false })
+  async openFrontend() {
+    const context = this.context
+    await withinTimeout(
+      context.tracing.start({ screenshots: true, snapshots: true, sources: false }),
+      'Starting the Chromium trace'
+    )
     this.traceStarted = true
 
     const inspectorSocket = this.inspectorUrl.replace(/^ws:\/\//, '')
@@ -163,7 +239,7 @@ export class ChromiumDevToolsFrontend {
       `http://${browserEndpoint.host}/devtools/js_app.html?experiments=true&v8only=true` +
       `&ws=${inspectorSocket}&hl=en-US`
 
-    const page = await context.newPage()
+    const page = await withinTimeout(context.newPage(), 'Opening the Chromium page')
     this.page = page
     page.on('console', (message) => {
       this.consoleMessages.push({
@@ -193,14 +269,13 @@ export class ChromiumDevToolsFrontend {
       timeout: DEFAULT_TIMEOUT_MS
     })
     await this.openNetworkPanel()
-    return this
   }
 
   async openNetworkPanel() {
     const page = this.page
     const networkTab = page.getByText('Network', { exact: true }).first()
     await networkTab.waitFor({ state: 'visible', timeout: DEFAULT_TIMEOUT_MS })
-    await networkTab.click()
+    await networkTab.click({ timeout: DEFAULT_TIMEOUT_MS })
     await page.getByText('Fetch/XHR', { exact: true }).waitFor({
       state: 'visible',
       timeout: DEFAULT_TIMEOUT_MS
@@ -309,10 +384,14 @@ export class ChromiumDevToolsFrontend {
       attachments.push(path)
     }
 
-    if (this.page && !this.page.isClosed()) {
+    if (this.page && !this.page.isClosed() && this.page.url() === this.frontendUrl) {
       const screenshotName = `${prefix}-frontend.png`
       const screenshotPath = testInfo.outputPath(screenshotName)
-      await this.page.screenshot({ path: screenshotPath, fullPage: true })
+      await this.page.screenshot({
+        path: screenshotPath,
+        fullPage: true,
+        timeout: DIAGNOSTIC_TIMEOUT_MS
+      })
       await testInfo.attach(screenshotName, {
         path: screenshotPath,
         contentType: 'image/png'
@@ -323,7 +402,10 @@ export class ChromiumDevToolsFrontend {
     if (this.traceStarted && !this.traceStopped) {
       const traceName = `${prefix}-trace.zip`
       const tracePath = testInfo.outputPath(traceName)
-      await this.context.tracing.stop({ path: tracePath })
+      await withinTimeout(
+        this.context.tracing.stop({ path: tracePath }),
+        'Saving the Chromium trace'
+      )
       this.traceStopped = true
       await testInfo.attach(traceName, { path: tracePath, contentType: 'application/zip' })
       attachments.push(tracePath)
@@ -340,7 +422,7 @@ export class ChromiumDevToolsFrontend {
           {
             backend: this.backend,
             playwrightChromium: this.browserVersion,
-            chromiumExecutable: chromium.executablePath(),
+            chromiumExecutable: this.executablePath,
             frontendUrl: this.frontendUrl,
             inspectorUrl: this.inspectorUrl,
             actualPageUrls: this.context?.pages().map((page) => page.url()) ?? [],
@@ -366,10 +448,14 @@ export class ChromiumDevToolsFrontend {
       attachments.push(path)
     }
 
-    if (this.page && !this.page.isClosed()) {
+    if (this.page && !this.page.isClosed() && this.page.url() === this.frontendUrl) {
       const screenshotPath = testInfo.outputPath('devtools-frontend.png')
       try {
-        await this.page.screenshot({ path: screenshotPath, fullPage: true })
+        await this.page.screenshot({
+          path: screenshotPath,
+          fullPage: true,
+          timeout: DIAGNOSTIC_TIMEOUT_MS
+        })
         await testInfo.attach('devtools-frontend.png', {
           path: screenshotPath,
           contentType: 'image/png'
@@ -386,11 +472,23 @@ export class ChromiumDevToolsFrontend {
 
     if (this.traceStarted && !this.traceStopped) {
       const tracePath = testInfo.outputPath('devtools-trace.zip')
-      await this.context.tracing.stop({ path: tracePath }).catch(() => undefined)
-      this.traceStopped = true
-      await testInfo
-        .attach('devtools-trace.zip', { path: tracePath, contentType: 'application/zip' })
-        .catch(() => {})
+      try {
+        await withinTimeout(
+          this.context.tracing.stop({ path: tracePath }),
+          'Saving the Chromium trace'
+        )
+        this.traceStopped = true
+        await testInfo.attach('devtools-trace.zip', {
+          path: tracePath,
+          contentType: 'application/zip'
+        })
+      } catch (traceError) {
+        await attachFile(
+          'devtools-trace-error.json',
+          JSON.stringify(serializeError(traceError), null, 2),
+          'application/json'
+        )
+      }
     }
 
     await Promise.all([
@@ -405,7 +503,7 @@ export class ChromiumDevToolsFrontend {
             error: serializeError(error),
             backend: this.backend,
             playwrightChromium: this.browserVersion,
-            chromiumExecutable: chromium.executablePath(),
+            chromiumExecutable: this.executablePath,
             frontendUrl: this.frontendUrl,
             inspectorUrl: this.inspectorUrl,
             actualPageUrls: this.context?.pages().map((page) => page.url()) ?? [],
@@ -433,14 +531,17 @@ export class ChromiumDevToolsFrontend {
     return attachments
   }
 
-  async close() {
-    if (this.closed) return
-    this.closed = true
+  close() {
+    this.closing ??= this.closeResources()
+    return this.closing
+  }
+
+  async closeResources() {
     const errors = []
 
     if (this.traceStarted && !this.traceStopped) {
       try {
-        await this.context.tracing.stop()
+        await withinTimeout(this.context.tracing.stop(), 'Stopping the Chromium trace')
         this.traceStopped = true
       } catch (error) {
         errors.push(error)
@@ -448,23 +549,25 @@ export class ChromiumDevToolsFrontend {
     }
 
     try {
-      await this.browser?.close()
+      if (this.browser) {
+        await withinTimeout(this.browser.close(), 'Closing the Chromium session')
+      }
     } catch (error) {
       errors.push(error)
     }
 
-    if (
-      this.browserProcess &&
-      this.browserProcess.exitCode === null &&
-      this.browserProcess.signalCode === null
-    ) {
-      this.browserProcess.kill('SIGTERM')
+    const child = this.browserProcess
+    if (childIsRunning(child)) {
+      child.kill('SIGTERM')
       try {
-        await waitForExit(this.browserProcess)
+        await waitForExit(child, DIAGNOSTIC_TIMEOUT_MS)
       } catch {
-        this.browserProcess.kill('SIGKILL')
-        await waitForExit(this.browserProcess, 2_000).catch((error) => errors.push(error))
+        child.kill('SIGKILL')
+        await waitForExit(child, 2_000).catch((error) => errors.push(error))
       }
+    }
+    if (this.stopAssetServerOnExit && !childIsRunning(child)) {
+      process.off('exit', this.stopAssetServerOnExit)
     }
 
     if (this.userDataDirectory) {

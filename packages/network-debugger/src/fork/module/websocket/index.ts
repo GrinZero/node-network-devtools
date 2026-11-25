@@ -2,7 +2,8 @@ import type {
   LegacyWebSocketFrame,
   LegacyWebSocketHandshake
 } from '../../../legacy-bridge/contracts'
-import { formatHeadersToHeaderText, parseRawHeaders, stringifyNestedObj } from '../../../utils'
+import { formatHeadersToHeaderText, parseRawHeaders } from '../../../utils'
+import { RequestHeaderPipe } from '../../pipe/request-header-transformer'
 import { createPlugin, useHandler } from '../common'
 import { NetworkPluginCore } from '../network'
 
@@ -26,6 +27,7 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
         return
       }
 
+      const requestHeaders = new RequestHeaderPipe(request.requestHeaders).getData()
       const convertedResponseHeaders = parseRawHeaders([...response.rawHeaders])
 
       await devtool.send({
@@ -43,7 +45,7 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
           timestamp: devtool.getTimestamp(),
           requestId: request.id,
           request: {
-            headers: request.requestHeaders
+            headers: requestHeaders
           }
         }
       })
@@ -62,9 +64,9 @@ export const websocketPlugin = createPlugin('websocket', ({ devtool, core }) => 
             statusText: response.statusMessage,
             requestHeadersText: formatHeadersToHeaderText(
               `${request.method} ${request.url} HTTP/${response.httpVersion}\r\n`,
-              request.requestHeaders
+              requestHeaders
             ),
-            requestHeaders: stringifyNestedObj(request.requestHeaders)
+            requestHeaders
           },
           timestamp: devtool.getTimestamp()
         }

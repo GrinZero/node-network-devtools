@@ -129,9 +129,7 @@ export class LegacyAdapter implements DebugAdapter {
     }
 
     const unsetUndiciFetch = interceptUndiciFetch
-      ? mockRules.length > 0
-        ? undiciFetchProxy(mainProcess, mockRules)
-        : undiciFetchProxy(mainProcess)
+      ? undiciFetchProxy(mainProcess, mockRules, process.argv[1] || '__nnd_entry__.cjs')
       : undefined
     let disposed = false
 

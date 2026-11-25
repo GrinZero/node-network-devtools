@@ -16,6 +16,11 @@ internet access.
 The test also records frontend resource requests and WebSockets and fails if any use a non-loopback
 host.
 
+On macOS the test launches Chromium with a temporary profile and Playwright's mock keychain
+flags. Playwright controls a separate browser session on macOS to load the official assets from
+the local asset server. Both sessions use the same Chrome for Testing executable. The launcher
+terminates the asset server when startup times out or the test worker exits.
+
 The pinned frontend model API used by the smoke is deliberately small:
 
 ```js

@@ -169,7 +169,19 @@ describe('fork/module/websocket/index.ts', () => {
     test('发送 WebSocket 创建和握手消息序列', async () => {
       const { websocketPlugin } = await import('./index')
 
-      const testRequest = createTestRequest({ id: 'ws-created-test' })
+      const testRequest = createTestRequest({
+        id: 'ws-created-test',
+        requestHeaders: {
+          Upgrade: 'websocket',
+          'sec-websocket-version': 13,
+          'x-custom': ['first', 'second']
+        }
+      })
+      const expectedHeaders = {
+        Upgrade: 'websocket',
+        'sec-websocket-version': '13',
+        'x-custom': 'first,second'
+      }
       mockGetRequest.mockReturnValue(testRequest)
 
       const context = createMockContext()
@@ -205,7 +217,7 @@ describe('fork/module/websocket/index.ts', () => {
         params: expect.objectContaining({
           requestId: 'ws-created-test',
           request: expect.objectContaining({
-            headers: testRequest.requestHeaders
+            headers: expectedHeaders
           })
         })
       })
@@ -217,10 +229,12 @@ describe('fork/module/websocket/index.ts', () => {
           requestId: 'ws-created-test',
           response: expect.objectContaining({
             status: 101,
-            statusText: 'Switching Protocols'
+            statusText: 'Switching Protocols',
+            requestHeaders: expectedHeaders
           })
         })
       })
+      expect(testRequest.requestHeaders['sec-websocket-version']).toBe(13)
     })
 
     test('没有 requestId 时不处理', async () => {

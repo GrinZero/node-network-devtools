@@ -1,3 +1,7 @@
+import { cp, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 
 /**
@@ -225,6 +229,45 @@ describe('core/undici.ts', () => {
       // 验证 undici.fetch 被设置为代理函数
       expect(mockUndiciModule.fetch).toBe(mockProxyFn)
     })
+  })
+
+  test('patches and restores a separate Undici resolved from the application entry', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'nnd-undici-'))
+    let restore: (() => void) | undefined
+    try {
+      const requireFromDebugger = createRequire(import.meta.url)
+      const peerPackage = dirname(requireFromDebugger.resolve('undici/package.json'))
+      await mkdir(join(directory, 'node_modules'))
+      await cp(peerPackage, join(directory, 'node_modules', 'undici'), { recursive: true })
+
+      const entry = join(directory, 'app.cjs')
+      const requireFromApp = createRequire(entry)
+      const appUndici: typeof import('undici') = requireFromApp('undici')
+      expect(appUndici).not.toBe(requireFromDebugger('undici'))
+
+      const appFetch = appUndici.fetch
+      const peerFetch = vi.fn()
+      const peerProxy = vi.fn()
+      const appProxy = vi.fn()
+      mockUndiciModule.fetch = peerFetch
+      mockFetchProxyFactory.mockReturnValueOnce(peerProxy).mockReturnValueOnce(appProxy)
+
+      const { undiciFetchProxy } = await import('./undici')
+      const { MainProcess } = await import('./fork')
+      const mainProcess = new MainProcess({ key: 'test' })
+      restore = undiciFetchProxy(mainProcess, [], entry)
+      expect(mockFetchProxyFactory).toHaveBeenNthCalledWith(1, peerFetch, mainProcess)
+      expect(mockFetchProxyFactory).toHaveBeenNthCalledWith(2, appFetch, mainProcess)
+      expect(mockUndiciModule.fetch).toBe(peerProxy)
+      expect(appUndici.fetch).toBe(appProxy)
+
+      restore?.()
+      expect(mockUndiciModule.fetch).toBe(peerFetch)
+      expect(appUndici.fetch).toBe(appFetch)
+    } finally {
+      restore?.()
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   describe('undici fetch 拦截功能', () => {
